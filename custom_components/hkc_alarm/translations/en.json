@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Integration for HKC Alarm systems.",
+        "data": {
+          "alarm_code": "Alarm Code",
+          "panel_password": "Panel Password",
+          "panel_id": "Panel ID",
+          "update_interval": "Update Interval (seconds)"
+        }
+      },
+      "options": {
+        "title": "Options",
+        "data": {
+          "update_interval": "Update Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the HKC Alarm.",
+      "invalid_auth": "Invalid authentication details.",
+      "unknown": "An unknown error occurred."
+    },
+    "abort": {
+      "already_configured": "HKC Alarm integration is already configured."
+    }
+  }
+}
