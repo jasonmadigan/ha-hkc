@@ -97,8 +97,6 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _logger.error("self.coordinator.data")
-        _logger.error(self.coordinator.data)
         status, panel_data = self.coordinator.data
         self._panel_data = panel_data
         blocks = status.get("blocks", [])
