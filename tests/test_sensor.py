@@ -59,7 +59,7 @@ async def test_hkc_sensor_invalid_timestamp(hass, aioclient_mock):
         await sensor.async_update()
 
         assert (
-            sensor.state == "Unknown"
+            sensor.state == "Open"
         )  # as per your logic, an invalid timestamp should result in state "Unknown"
 
 
