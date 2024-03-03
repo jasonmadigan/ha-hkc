@@ -85,14 +85,17 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
         await self.hass.async_add_executor_job(self._hkc_alarm.disarm)
+        await self.coordinator.async_request_refresh()
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
         await self.hass.async_add_executor_job(self._hkc_alarm.arm_partset_a)
+        await self.coordinator.async_request_refresh()
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
         await self.hass.async_add_executor_job(self._hkc_alarm.arm_fullset)
+        await self.coordinator.async_request_refresh()
 
     @callback
     def _handle_coordinator_update(self) -> None:
