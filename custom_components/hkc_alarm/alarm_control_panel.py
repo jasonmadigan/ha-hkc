@@ -27,6 +27,8 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
         | AlarmControlPanelEntityFeature.ARM_AWAY
     )
 
+    _attr_code_arm_required = False
+
     def __init__(self, data, device_info, coordinator):
         AlarmControlPanelEntity.__init__(self)
         CoordinatorEntity.__init__(self, coordinator)
