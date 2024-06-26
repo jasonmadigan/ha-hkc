@@ -1,6 +1,6 @@
 aiohttp>=3.9.5
-homeassistant==2024.6.1
+homeassistant==2024.6.3
 pytest
-pytest-homeassistant-custom-component==0.13.133
+pytest-homeassistant-custom-component==0.13.136
 pytest-aiohttp
-pyhkc==0.4.5
+pyhkc==0.4.6

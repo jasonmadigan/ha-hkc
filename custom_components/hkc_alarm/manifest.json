@@ -1,7 +1,7 @@
 {
   "domain": "hkc_alarm",
   "name": "HKC Alarm",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "documentation": "https://github.com/jasonmadigan/ha-hkc",
   "issue_tracker": "https://github.com/jasonmadigan/ha-hkc/issues",
   "dependencies": [],
@@ -9,8 +9,7 @@
     "@jasonmadigan"
   ],
   "requirements": [
-    "pyhkc==0.4.5",
-    "requests>=2.0.0,<3.0.0"
+    "pyhkc==0.4.6"
   ],
   "config_flow": true,
   "iot_class": "cloud_polling"
