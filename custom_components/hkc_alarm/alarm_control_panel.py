@@ -25,6 +25,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     _attr_supported_features = (
         AlarmControlPanelEntityFeature.ARM_HOME
         | AlarmControlPanelEntityFeature.ARM_AWAY
+        | AlarmControlPanelEntityFeature.ARM_NIGHT
     )
 
     _attr_code_arm_required = False
