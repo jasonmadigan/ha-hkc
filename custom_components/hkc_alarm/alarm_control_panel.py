@@ -42,7 +42,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
-        return self._hkc_alarm.panel_id + "panel"
+        return str(self._hkc_alarm.panel_id) + "panel"
 
     @property
     def extra_state_attributes(self):

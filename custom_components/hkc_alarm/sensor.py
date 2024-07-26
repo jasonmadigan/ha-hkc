@@ -39,7 +39,7 @@ class HKCSensor(CoordinatorEntity):
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
-        return self._hkc_alarm.panel_id + str(self._input_data["inputId"])
+        return str(self._hkc_alarm.panel_id) + str(self._input_data["inputId"])
 
     @property
     def device_info(self):
