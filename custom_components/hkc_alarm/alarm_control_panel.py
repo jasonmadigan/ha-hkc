@@ -25,6 +25,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     _attr_supported_features = (
         AlarmControlPanelEntityFeature.ARM_HOME
         | AlarmControlPanelEntityFeature.ARM_AWAY
+        | AlarmControlPanelEntityFeature.ARM_NIGHT
     )
 
     _attr_code_arm_required = False
@@ -92,6 +93,10 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
         """Send arm home command."""
         await self.hass.async_add_executor_job(self._hkc_alarm.arm_partset_a)
 
+    async def async_alarm_arm_night(self, code: str | None = None) -> None:
+        """Send arm night command."""
+        await self.hass.async_add_executor_job(self._hkc_alarm.arm_partset_b)
+
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
         await self.hass.async_add_executor_job(self._hkc_alarm.arm_fullset)
@@ -105,6 +110,8 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
 
         if any(block["armState"] == 3 for block in blocks):
             self._state = "armed_away"
+        elif any(block["armState"] == 2 for block in blocks):
+            self._state = "armed_night"
         elif any(block["armState"] == 1 for block in blocks):
             self._state = "armed_home"
         else:
