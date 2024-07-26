@@ -23,7 +23,12 @@ The integration updates data every minute by default. It exposes the following e
 * An alarm control panel entity representing the HKC Alarm system.
 * Sensor entities for each input on the HKC Alarm system.
 
-The *State* of the alarm control panel is either `armed_home`, `armed_away`, or `disarmed`. The sensor entities will have states `Open` or `Closed` based on the state of the corresponding input on the HKC Alarm system.
+The *State* of the alarm control panel is either `armed_home`, `armed_away`, `armed_night` or `disarmed`. The sensor entities will have states `Open` or `Closed` based on the state of the corresponding input on the HKC Alarm system.
+
+- `armed_away` maps to "Full Set"
+- `armed_home` maps to "Partset A"
+- `armed_night` maps to "Partset B"
+- `disarmed` maps to, as you'd expect, "Disarmed"
 
 ## Sample Automation to notify about alarm state changes
 
