@@ -14,6 +14,14 @@ mock_sensor_data = {
     "inputState": 1,
 }
 
+# Mock tampered sensor data for HKCSensor to process
+mock_tampered_sensor_data = {
+    "inputId": "2",
+    "description": "Front Door",
+    "timestamp": "2024-09-02T12:00:00Z",
+    "inputState": 2,
+}
+
 
 class MockCoordinator:
     async_request_refresh = AsyncMock()
@@ -39,6 +47,22 @@ async def test_hkc_sensor_state(hass, aioclient_mock):
         assert (
             sensor.state == "Open"
         )  # as per your logic, inputState being 1 should result in state "Open"
+
+@pytest.mark.asyncio
+async def test_hkc_sensor_tampered_state(hass, aioclient_mock):
+    with patch.object(HKCSensor, "_panel_data", {"display": "Thu 26 Oct 10:35"}):
+        mock_coordinator = MockCoordinator()
+        sensor = HKCSensor(
+            "hkc_alarm_instance", mock_tampered_sensor_data, mock_coordinator
+        )
+        await sensor.async_update()
+
+        print(f"Mock Sensor Data: {mock_sensor_data}")
+        print(f"Sensor State: {sensor.state}")
+
+        assert (
+            sensor.state == "Tamper"
+        ) # as per your logic, inputState being 2 should result in state "Tamper"
 
 
 @pytest.mark.asyncio

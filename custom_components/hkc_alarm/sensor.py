@@ -141,6 +141,16 @@ class HKCSensor(CoordinatorEntity):
                 f"Sensor {self.name} state determined as 'Open' due to inputState being 1."
             )
             return "Open"
+        elif self._input_data["inputState"] == 2:
+            _logger.debug(
+                f"Sensor {self.name} state determined as 'Tamper' due to inputState being 2."
+            )
+            return "Tamper"
+        elif self._input_data["inputState"] == 5:
+            _logger.debug(
+                f"Sensor {self.name} state determined as 'Inhibited' due to inputState being 5."
+            )
+            return "Inhibited"
         else:
             _logger.debug(f"Sensor {self.name} state determined as 'Closed'.")
             return "Closed"
