@@ -1,9 +1,12 @@
 # HKC Alarm Integration for Home Assistant
 
 > [!CAUTION]
-> This integration is only recommended for HKC users who have an alarm system with HKC's WiFi card, rather than users who are purely using GSM. GSM-only users may encounter rate limiting from HKC, so it isn't advisable to use.
+> This integration is only recommended for HKC users who have an alarm system with HKC's WiFi card, rather than users who are purely using GSM. GSM-only users will encounter rate limiting from HKC, so it isn't advisable to use unless you are certain you are WiFi + GSM.
 
-This repository contains an unofficial Home Assistant integration for [HKC Alarm](https://www.hkcsecurity.com/) systems, allowing you to control and monitor your HKC Alarm directly from Home Assistant. It is provided as-is, with no warranty or support, and is not in any way associated nor endorsed by HKC. Users assume all risk in using this.
+> [!CAUTION]
+> This integration is provided as-is, with no warranty or support, and is not in any way associated nor endorsed by HKC. Users assume all risk in using this integration. HKC could, for all I know, block their users from using this or their app at any time. That said, many users have been successfully using this integration for almost a year now (as of Sept 2024).
+
+This repository contains an unofficial Home Assistant integration for [HKC Alarm](https://www.hkcsecurity.com/) systems, allowing you to control and monitor your HKC Alarm directly from Home Assistant. 
 
 ## Installation
 
