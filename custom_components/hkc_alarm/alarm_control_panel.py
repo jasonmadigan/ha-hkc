@@ -108,7 +108,9 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
         self._panel_data = panel_data
         blocks = status.get("blocks", [])
 
-        if any(block["armState"] == 3 for block in blocks):
+        if any(block["inAlarm"] for block in blocks):
+            self._state = "triggered"
+        elif any(block["armState"] == 3 for block in blocks):
             self._state = "armed_away"
         elif any(block["armState"] == 2 for block in blocks):
             self._state = "armed_night"
@@ -116,6 +118,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
             self._state = "armed_home"
         else:
             self._state = "disarmed"
+
         self.async_write_ha_state()  # Update the state with the latest data
 
 
