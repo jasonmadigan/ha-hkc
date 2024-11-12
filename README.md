@@ -66,5 +66,5 @@ This will produce detailed debug logs which can help in diagnosing the problem.
 
 ## Links
 
-- [Github Repository](https://github.com/jasonmadigan/pyhkc)
+- [pyhkc](https://github.com/jasonmadigan/pyhkc)
 - [HKC Alarm PyPi Package](https://pypi.org/project/pyhkc/)
