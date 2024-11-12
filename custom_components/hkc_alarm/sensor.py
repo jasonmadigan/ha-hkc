@@ -112,6 +112,15 @@ class HKCSensor(CoordinatorEntity):
                 )
                 return "Unknown"  # Return an unknown state if timestamp parsing fails
 
+        # Adjust sensor time for DST if necessary
+        time_difference = panel_time - sensor_timestamp
+        if abs(time_difference.total_seconds()) >= 3600:  # Check for ~60 minutes offset
+            if time_difference.total_seconds() > 0:
+                sensor_timestamp += timedelta(hours=1)
+            else:
+                sensor_timestamp -= timedelta(hours=1)
+
+        # Recalculate time difference after adjustment
         time_difference = panel_time - sensor_timestamp
 
         # Get panel offset.
