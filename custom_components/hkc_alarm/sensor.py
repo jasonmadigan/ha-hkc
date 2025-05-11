@@ -230,18 +230,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     await coordinator.async_config_entry_first_refresh()
 
-    # Register a custom service for testing
-    async def async_force_refresh(service_call):
-        """Force refresh data from HKC."""
-        await coordinator.async_request_refresh()
-
-    hass.services.async_register(
-        DOMAIN,
-        "force_refresh",
-        async_force_refresh,
-        schema=vol.Schema({}),
-    )
-
     all_inputs = coordinator.data
     # Filter out the inputs with empty description
     filtered_inputs = [
