@@ -3,24 +3,18 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
 )
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    CoordinatorEntity,
-    UpdateFailed,
-)
-from datetime import timedelta
-from .const import DOMAIN, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+from .const import DOMAIN
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 import logging
 
-from datetime import timedelta
 from homeassistant.core import callback
 
 
 _logger = logging.getLogger(__name__)
 
 
-class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
+class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
     _attr_supported_features = (
         AlarmControlPanelEntityFeature.ARM_HOME
         | AlarmControlPanelEntityFeature.ARM_AWAY
@@ -29,13 +23,12 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
 
     _attr_code_arm_required = False
 
-    def __init__(self, data, device_info, coordinator):
-        AlarmControlPanelEntity.__init__(self)
-        CoordinatorEntity.__init__(self, coordinator)
-        self._hkc_alarm = data.get('hkc_alarm')
-        self._scan_interval = data.get('scan_interval')
+    def __init__(self, hkc_alarm, device_info, alarm_coordinator):
+        super().__init__(alarm_coordinator)
+        self._hkc_alarm = hkc_alarm
         self._device_info = device_info
-        self._panel_data = None
+        self._state = None
+        self._alarm_coordinator = alarm_coordinator
 
     @property
     def unique_id(self):
@@ -45,18 +38,18 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     @property
     def extra_state_attributes(self):
         """Return the state attributes of the alarm control panel."""
-        if self._panel_data is None:
+        if self._alarm_coordinator.panel_data is None:
             return None
 
-        # Extract the desired attributes from self._panel_data
+        # Extract the desired attributes from self._coordinator.panel_data
         attributes = {
-            "Green LED": self._panel_data['greenLed'],
-            "Red LED": self._panel_data['redLed'],
-            "Amber LED": self._panel_data['amberLed'],
-            "Cursor On": self._panel_data['cursorOn'],
-            "Cursor Index": self._panel_data['cursorIndex'],
-            "Display": self._panel_data['display'],
-            "Blink": self._panel_data['blink'],
+            "Green LED": self._alarm_coordinator.panel_data["greenLed"],
+            "Red LED": self._alarm_coordinator.panel_data["redLed"],
+            "Amber LED": self._alarm_coordinator.panel_data["amberLed"],
+            "Cursor On": self._alarm_coordinator.panel_data["cursorOn"],
+            "Cursor Index": self._alarm_coordinator.panel_data["cursorIndex"],
+            "Display": self._alarm_coordinator.panel_data["display"],
+            "Blink": self._alarm_coordinator.panel_data["blink"],
         }
         return attributes
 
@@ -77,7 +70,10 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     @property
     def available(self) -> bool:
         """Return True if alarm is available."""
-        return self._panel_data is not None and "display" in self._panel_data
+        return (
+            self._alarm_coordinator.panel_data is not None
+            and "display" in self._alarm_coordinator.panel_data
+        )
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
@@ -98,9 +94,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        status, panel_data = self.coordinator.data
-        self._panel_data = panel_data
-        blocks = status.get("blocks", [])
+        blocks = self._alarm_coordinator.status.get("blocks", [])
 
         if any(block["inAlarm"] for block in blocks):
             self._attr_alarm_state = AlarmControlPanelState.TRIGGERED
@@ -117,29 +111,8 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    hkc_alarm = hass.data[DOMAIN][entry.entry_id]
-    update_interval = entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
-
-    async def _async_fetch_data():
-        try:
-            hkc_alarm = hass.data[DOMAIN][entry.entry_id]["hkc_alarm"]
-            status = await hass.async_add_executor_job(hkc_alarm.get_system_status)
-            panel_data = await hass.async_add_executor_job(hkc_alarm.get_panel)
-            return status, panel_data
-        except Exception as e:
-            _logger.error(f"Exception occurred while fetching data: {e}")
-            raise UpdateFailed(f"Failed to update: {e}")
-
-
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _logger,
-        name="hkc_alarm_data",
-        update_method=_async_fetch_data,
-        update_interval=timedelta(seconds=update_interval),
-    )
-
-    await coordinator.async_config_entry_first_refresh()
+    hkc_alarm = hass.data[DOMAIN][entry.entry_id]["hkc_alarm"]
+    alarm_coordinator = hass.data[DOMAIN][entry.entry_id]["alarm_coordinator"]
 
     device_info = {
         "identifiers": {(DOMAIN, entry.entry_id)},
@@ -147,6 +120,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         "manufacturer": "HKC",
     }
     async_add_entities(
-        [HKCAlarmControlPanel(hkc_alarm, device_info, coordinator)],
+        [HKCAlarmControlPanel(hkc_alarm, device_info, alarm_coordinator)],
         True,
     )
