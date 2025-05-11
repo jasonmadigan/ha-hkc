@@ -1,8 +1,7 @@
-from homeassistant.components.alarm_control_panel import AlarmControlPanelEntity
-from .const import DOMAIN
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
 )
 from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
@@ -104,15 +103,15 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
         blocks = status.get("blocks", [])
 
         if any(block["inAlarm"] for block in blocks):
-            self._attr_state = "triggered"
+            self._attr_alarm_state = AlarmControlPanelState.TRIGGERED
         elif any(block["armState"] == 3 for block in blocks):
-            self._attr_state = "armed_away"
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_AWAY
         elif any(block["armState"] == 2 for block in blocks):
-            self._attr_state = "armed_night"
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_NIGHT
         elif any(block["armState"] == 1 for block in blocks):
-            self._attr_state = "armed_home"
+            self._attr_alarm_state = AlarmControlPanelState.ARMED_HOME
         else:
-            self._attr_state = "disarmed"
+            self._attr_alarm_state = AlarmControlPanelState.DISARMED
 
         self.async_write_ha_state()  # Update the state with the latest data
 
