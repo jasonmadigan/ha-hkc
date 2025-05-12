@@ -1,17 +1,10 @@
 import logging
-from pyhkc.hkc_api import HKCAlarm
 import pytz
+from homeassistant.core import callback
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import callback, HomeAssistant
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-from datetime import datetime, timezone, timedelta
-from homeassistant.util import Throttle
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from datetime import datetime, timedelta
+from .const import DOMAIN
 
 _logger = logging.getLogger(__name__)
 
@@ -183,53 +176,10 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()  # Update the state with the latest data
 
 
-class HKCSensorCoordinator(DataUpdateCoordinator):
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        config_entry: ConfigEntry,
-        hkc_alarm: HKCAlarm,
-        alarm_coordinator: DataUpdateCoordinator,
-        update_interval,
-    ) -> None:
-        super().__init__(
-            hass,
-            _logger,
-            config_entry=config_entry,
-            name="hkc_sensor_data",
-            update_interval=timedelta(seconds=update_interval),
-        )
-        self._last_update = datetime.min
-        self._hkc_alarm = hkc_alarm
-        self._alarm_coordinator = alarm_coordinator
-        self.sensor_data = None
-
-    async def _async_update_data(self):
-        @Throttle(timedelta(seconds=30))
-        def fetch_data():
-            _logger.warning("hkc_sensor_data fetch")
-            self.sensor_data = self._hkc_alarm.get_all_inputs()
-
-        try:
-            await self._alarm_coordinator.async_refresh()
-            now = datetime.now(timezone.utc)
-            if now > self._last_update + timedelta(seconds=30):
-                self._last_update = now
-                await self.hass.async_add_executor_job(fetch_data)
-            return self.sensor_data
-        except Exception as e:
-            _logger.error(f"Exception occurred while fetching HKC data: {e}")
-            raise UpdateFailed(f"Failed to update: {e}")
-
-
 async def async_setup_entry(hass, entry, async_add_entities):
     hkc_alarm = hass.data[DOMAIN][entry.entry_id]["hkc_alarm"]
-    update_interval = entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
     alarm_coordinator = hass.data[DOMAIN][entry.entry_id]["alarm_coordinator"]
-    sensor_coordinator = HKCSensorCoordinator(
-        hass, entry, hkc_alarm, alarm_coordinator, update_interval
-    )
-    await sensor_coordinator.async_config_entry_first_refresh()
+    sensor_coordinator = hass.data[DOMAIN][entry.entry_id]["sensor_coordinator"]
 
     all_inputs = sensor_coordinator.data
     # Filter out the inputs with empty description
