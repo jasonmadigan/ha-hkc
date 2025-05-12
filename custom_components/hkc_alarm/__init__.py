@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL
+from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL, MIN_UPDATE_INTERVAL
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
 
         try:
             now = datetime.now(timezone.utc)
-            if self._last_update is None or now > self._last_update + timedelta(seconds=30):
+            if self._last_update is None or now > self._last_update + timedelta(seconds=MIN_UPDATE_INTERVAL):
                 self._last_update = now
                 await self.hass.async_add_executor_job(fetch_data)
             return self.status, self.panel_data #, self.sensor_data
@@ -63,7 +63,7 @@ class HKCSensorCoordinator(DataUpdateCoordinator):
         try:
             await self._alarm_coordinator.async_refresh()
             now = datetime.now(timezone.utc)
-            if self._last_update is None or now > self._last_update + timedelta(seconds=30):
+            if self._last_update is None or now > self._last_update + timedelta(seconds=MIN_UPDATE_INTERVAL):
                 self._last_update = now
                 await self.hass.async_add_executor_job(fetch_data)
             return self.sensor_data
