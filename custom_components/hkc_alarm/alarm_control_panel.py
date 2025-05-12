@@ -5,6 +5,7 @@ from homeassistant.components.alarm_control_panel import (
 )
 from .const import DOMAIN
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from .const import DOMAIN
 
 import logging
 

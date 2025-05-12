@@ -3,8 +3,8 @@ import pytz
 from homeassistant.core import callback
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from datetime import datetime, timedelta
 from .const import DOMAIN
+from datetime import datetime, timedelta
 
 _logger = logging.getLogger(__name__)
 
