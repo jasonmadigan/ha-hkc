@@ -21,15 +21,6 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         self._sensor_coordinator = sensor_coordinator
 
     @property
-    def extra_state_attributes(self):
-        """Return the state attributes of the alarm sensors"""
-        if self._alarm_coordinator.panel_time_offset is None:
-            return None
-
-        attributes = {"Panel Offset": round(self._alarm_coordinator.panel_time_offset)}
-        return attributes
-
-    @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
         return str(self._hkc_alarm.panel_id) + str(self._input_data["inputId"])
@@ -55,36 +46,6 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
             )
             return "Unused"
 
-        # Parse panel time
-        panel_time_str = self._alarm_coordinator.panel_data.get("display", "")
-
-        try:
-            panel_time = datetime.strptime(panel_time_str, "%a %d %b %H:%M")
-        except ValueError:
-            _logger.debug(
-                f"Failed to parse panel time: {panel_time_str} for sensor {self.name}. Falling back to previously known panel offset."
-            )
-            # Fallback to previously known panel offset
-            panel_time_offset = self._alarm_coordinator.panel_time_offset
-
-            if panel_time_offset is None:
-                # No previously known panel offset, we're stuck
-                return "Unknown"
-
-            # Round the offset value
-            panel_offset_in_minutes = round(panel_time_offset)
-
-            # Calculate new panel_time
-            current_time = datetime.now()
-            panel_time = current_time - timedelta(minutes=panel_offset_in_minutes)
-
-            # Convert panel_time back to string format
-            panel_time_str = panel_time.strftime("%a %d %b %H:%M")
-
-        # Ensure Panel Time is in UTC
-        current_year = datetime.utcnow().year
-        panel_time = panel_time.replace(year=current_year, tzinfo=pytz.UTC)
-
         # Parse sensor timestamp
         try:
             sensor_timestamp = datetime.strptime(
@@ -105,16 +66,7 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
                 )
                 return "Unknown"  # Return an unknown state if timestamp parsing fails
 
-        time_difference = panel_time - sensor_timestamp
-
-        # Get panel offset.
-        current_time = datetime.now(pytz.UTC)
-        time_difference = current_time - panel_time
-
-        # Calculate the difference in minutes
-        minutes_difference = time_difference.total_seconds() / 60
-
-        self._alarm_coordinator.panel_time_offset = minutes_difference
+        time_difference = sensor_timestamp - self._alarm_coordinator.panel_time
 
         # Handle cases where the timestamp is very old or invalid
         if time_difference > timedelta(days=365):

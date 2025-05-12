@@ -20,7 +20,7 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
         )
         self._last_update = None
         self._hkc_alarm = hkc_alarm
-        self.panel_time_offset = None
+        self.panel_time = None
         self.status = None
         self.panel_data = None
         # self.sensor_data = None
@@ -31,11 +31,23 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
             self.panel_data = self._hkc_alarm.get_panel()
             # self.sensor_data = self.hkc_alarm.get_all_inputs()
 
+        def parse_panel_time():
+            panel_time_str = self.panel_data.get("display", "")
+            try:
+                now = datetime.now(timezone.utc)
+                self.panel_time = datetime.strptime(
+                    panel_time_str, "%a %d %b %H:%M"
+                ).replace(year=now.year, tzinfo=timezone.utc)
+                _logger.warning("panel_time=%s", self.panel_time)
+            except ValueError:
+                _logger.debug(f"Failed to parse panel time: {panel_time_str}")
+
         try:
             now = datetime.now(timezone.utc)
             if self._last_update is None or now > self._last_update + timedelta(seconds=MIN_UPDATE_INTERVAL):
                 self._last_update = now
                 await self.hass.async_add_executor_job(fetch_data)
+                parse_panel_time()
             return self.status, self.panel_data #, self.sensor_data
         except Exception as e:
             _logger.error(f"Exception occurred while fetching HKC data: {e}")
