@@ -68,7 +68,7 @@ class HKCSensorCoordinator(DataUpdateCoordinator):
                 await self.hass.async_add_executor_job(fetch_data)
             return self.sensor_data
         except Exception as e:
-            _logger.error(f"Exception occurred while fetching HKC data: {e}")
+            _logger.error(f"Exception occurred while fetching HKC sensor data: {e}")
             _logger.error(traceback.format_exc())
             raise UpdateFailed(f"Failed to update: {e}")
 
