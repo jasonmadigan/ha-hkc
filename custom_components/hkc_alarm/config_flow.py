@@ -2,6 +2,7 @@
 import logging
 from pyhkc.hkc_api import HKCAlarm
 from homeassistant import config_entries, exceptions
+from homeassistant.core import callback
 import voluptuous as vol
 
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL
@@ -52,6 +53,8 @@ class HKCAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "panel_id": panel_id,
                     "panel_password": panel_password,
                     "user_code": alarm_code,
+                },
+                options={
                     CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],  # include update_interval in the entry data
                 },
             )
@@ -69,21 +72,34 @@ class HKCAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_options(self, user_input=None):
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        """Get the options flow for this handler."""
+        return HKCAlarmOptionsFlow()
+
+class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
+    """Handle an options flow for HKC Alarm."""
+
+    async def async_step_init(self, user_input=None):
         """Handle the options step."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(data=user_input)
+
+        user_input = {
+             CONF_UPDATE_INTERVAL: self.config_entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+        }
 
         options_schema = vol.Schema(
             {
                 vol.Optional(
                     CONF_UPDATE_INTERVAL,
-                    default=self.entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                    default=DEFAULT_UPDATE_INTERVAL
                 ): int,
             }
         )
 
         return self.async_show_form(
-            step_id="options",
-            data_schema=options_schema,
+            step_id="init",
+            data_schema=self.add_suggested_values_to_schema(options_schema, user_input)
         )

@@ -118,7 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         alarm_coordinator.update_interval = timedelta(seconds=update_interval)
         sensor_coordinator.update_interval = timedelta(seconds=update_interval)
 
-    entry.add_update_listener(update_options)
+    entry.async_on_unload(entry.add_update_listener(update_options))
 
     await hass.config_entries.async_forward_entry_setups(
         entry, ["alarm_control_panel", "sensor"]
