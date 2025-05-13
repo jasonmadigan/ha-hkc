@@ -38,7 +38,6 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
                 self.panel_time = datetime.strptime(
                     panel_time_str, "%a %d %b %H:%M"
                 ).replace(year=now.year, tzinfo=timezone.utc)
-                _logger.warning("panel_time=%s", self.panel_time)
             except ValueError:
                 _logger.debug(f"Failed to parse panel time: {panel_time_str}")
 
