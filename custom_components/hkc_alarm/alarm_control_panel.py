@@ -118,7 +118,7 @@ class HKCAlarmControlPanel(AlarmControlPanelEntity, CoordinatorEntity):
 
 async def async_setup_entry(hass, entry, async_add_entities):
     hkc_alarm = hass.data[DOMAIN][entry.entry_id]
-    update_interval = entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
+    update_interval = entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
 
     async def _async_fetch_data():
         try:
