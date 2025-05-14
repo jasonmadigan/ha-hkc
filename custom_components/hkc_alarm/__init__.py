@@ -21,6 +21,7 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
         self._last_update = None
         self._hkc_alarm = hkc_alarm
         self.panel_time = None
+        self._panel_time_delta = timedelta()
         self.status = None
         self.panel_data = None
         # self.sensor_data = None
@@ -33,13 +34,15 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
 
         def parse_panel_time():
             panel_time_str = self.panel_data.get("display", "")
+            now = datetime.now(timezone.utc)
             try:
-                now = datetime.now(timezone.utc)
                 self.panel_time = datetime.strptime(
                     panel_time_str, "%a %d %b %H:%M"
                 ).replace(year=now.year, tzinfo=timezone.utc)
+                self._panel_time_delta = self.panel_time - now
             except ValueError:
                 _logger.debug(f"Failed to parse panel time: {panel_time_str}")
+                self.panel_time = now + self._panel_time_delta
 
         try:
             now = datetime.now(timezone.utc)
