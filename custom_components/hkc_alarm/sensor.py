@@ -6,8 +6,6 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import DOMAIN
 from datetime import datetime, timedelta
-from homeassistant.helpers.service import async_register_admin_service
-import voluptuous as vol
 from homeassistant.helpers.event import async_track_time_interval
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -229,18 +227,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
     )
 
     await coordinator.async_config_entry_first_refresh()
-
-    # Register a custom service for testing
-    async def async_force_refresh(service_call):
-        """Force refresh data from HKC."""
-        await coordinator.async_request_refresh()
-
-    hass.services.async_register(
-        DOMAIN,
-        "force_refresh",
-        async_force_refresh,
-        schema=vol.Schema({}),
-    )
 
     all_inputs = coordinator.data
     # Filter out the inputs with empty description
