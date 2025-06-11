@@ -1,15 +1,12 @@
+import logging
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
 )
-from .const import DOMAIN
+from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
-
-import logging
-
-from homeassistant.core import callback
 
 
 _logger = logging.getLogger(__name__)
