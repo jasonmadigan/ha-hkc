@@ -1,13 +1,10 @@
 """Config flow for HKC Alarm."""
 import logging
-from pyhkc.hkc_api import HKCAlarm
-from homeassistant import config_entries, exceptions
-from homeassistant.core import callback
 import voluptuous as vol
-
+from pyhkc.hkc_api import HKCAlarm
+from homeassistant import config_entries
+from homeassistant.core import callback
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL
-
-from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
