@@ -36,7 +36,10 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         }
 
     @property
-    def state(self):
+    def name(self):
+        return self._input_data["description"]
+
+    def _get_sensor_state(self) -> str:
         """Determine the state of the sensor."""
 
         # Check for the default timestamp
@@ -78,7 +81,7 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         # Check if the time difference is within 60 seconds (maximum panel time resolution) to determine 'Open' state
         if abs(time_difference) < timedelta(seconds=60):
             _logger.debug(
-                f"Sensor {self.name} state determined as 'Open' due to timestamp within 30 seconds of panel time."
+                f"Sensor {self.name} state determined as 'Open' due to timestamp within 60 seconds of panel time."
             )
             return "Open"
         elif self._input_data["inputState"] == 1:
@@ -100,10 +103,6 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
             _logger.debug(f"Sensor {self.name} state determined as 'Closed'.")
             return "Closed"
 
-    @property
-    def name(self):
-        return self._input_data["description"]
-
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
@@ -120,6 +119,7 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         if matching_sensor_data is not None:
             # Update self._input_data with the matching sensor data
             self._input_data = matching_sensor_data
+            self._attr_native_value = self._get_sensor_state()
         else:
             _logger.warning(
                 f"No matching sensor data found for inputId {self._input_data.get('inputId')}"
