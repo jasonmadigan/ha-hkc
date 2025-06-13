@@ -2,5 +2,5 @@
   "name": "HKC Alarm Integration for Home Assistant",
   "hacs": "1.0.20",
   "render_readme": true,
-  "homeassistant": "2024.6.4"
+  "homeassistant": "2024.11.0"
 }
