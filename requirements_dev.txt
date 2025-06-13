@@ -4,4 +4,6 @@ pytest
 pytest-homeassistant-custom-component
 pytest-aiohttp
 requests>=2.31.0,<3.0.0
+geopy==2.3.0
+josepy==1.13.0
 pyhkc==0.4.9
