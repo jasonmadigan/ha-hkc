@@ -1,9 +1,20 @@
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, AsyncMock
 
 
 class MockAlarmCoordinator:
     async_request_refresh = AsyncMock()
     last_update_success = True  # or False, depending on what you want to test
+    panel_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+    panel_data = {
+        "greenLed": 0,
+        "redLed": 1,
+        "amberLed": 1,
+        "cursorOn": False,
+        "cursorIndex": 0,
+        "display": "Mon 12 May 20:55",
+        "blink": "0000000000000100",
+    }
 
 
 class MockSensorCoordinator:

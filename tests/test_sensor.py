@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 import pytest
 from custom_components.hkc_alarm.sensor import HKCSensor
@@ -26,32 +25,18 @@ mock_tampered_sensor_data = {
     "inputState": 2,
 }
 
-mock_panel_time = datetime.now(timezone.utc) - timedelta(seconds=120)
-mock_panel_data = {
-    "greenLed": 0,
-    "redLed": 1,
-    "amberLed": 1,
-    "cursorOn": False,
-    "cursorIndex": 0,
-    "display": "Mon 12 May 20:55",
-    "blink": "0000000000000100",
-}
-
 
 @pytest.mark.asyncio
 async def test_hkc_sensor_state():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
-        mock_alarm_coordinator = get_mock_alarm_coordinator()
-        mock_sensor_coordinator = get_mock_sensor_coordinator()
         sensor = HKCSensor(
             "hkc_alarm_instance",
             mock_sensor_data,
-            mock_alarm_coordinator,
-            mock_sensor_coordinator,
+            get_mock_alarm_coordinator(),
+            mock_sensor_coordinator := get_mock_sensor_coordinator(),
         )
         sensor.hass = get_mock_hass()
         mock_sensor_coordinator.sensor_data = [mock_sensor_data]
-        mock_alarm_coordinator.panel_time = mock_panel_time
         sensor._handle_coordinator_update()
 
         print(f"Mock Sensor Data: {mock_sensor_data}")  # Print the mock data
@@ -65,17 +50,14 @@ async def test_hkc_sensor_state():
 @pytest.mark.asyncio
 async def test_hkc_sensor_tampered_state():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
-        mock_alarm_coordinator = get_mock_alarm_coordinator()
-        mock_sensor_coordinator = get_mock_sensor_coordinator()
         sensor = HKCSensor(
             "hkc_alarm_instance",
             mock_tampered_sensor_data,
-            mock_alarm_coordinator,
-            mock_sensor_coordinator,
+            get_mock_alarm_coordinator(),
+            mock_sensor_coordinator := get_mock_sensor_coordinator(),
         )
         sensor.hass = get_mock_hass()
         mock_sensor_coordinator.sensor_data = [mock_tampered_sensor_data]
-        mock_alarm_coordinator.panel_time = mock_panel_time
         sensor._handle_coordinator_update()
 
         print(f"Mock Sensor Data: {mock_sensor_data}")
@@ -89,13 +71,11 @@ async def test_hkc_sensor_tampered_state():
 @pytest.mark.asyncio
 async def test_hkc_sensor_invalid_timestamp():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
-        mock_alarm_coordinator = get_mock_alarm_coordinator()
-        mock_sensor_coordinator = get_mock_sensor_coordinator()
         sensor = HKCSensor(
             "hkc_alarm_instance",
             mock_sensor_data,
-            mock_alarm_coordinator,
-            mock_sensor_coordinator,
+            get_mock_alarm_coordinator(),
+            mock_sensor_coordinator := get_mock_sensor_coordinator(),
         )
         sensor.hass = get_mock_hass()
         mock_sensor_coordinator.sensor_data = [
@@ -104,7 +84,6 @@ async def test_hkc_sensor_invalid_timestamp():
                 "timestamp": "invalid_timestamp",
             }
         ]
-        mock_alarm_coordinator.panel_time = mock_panel_time
         sensor._handle_coordinator_update()
         assert (
             sensor.state == "Unknown"
@@ -154,13 +133,11 @@ async def test_should_poll():
 @pytest.mark.asyncio
 async def test_handle_sensor_coordinator_update():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
-        mock_alarm_coordinator = get_mock_alarm_coordinator()
-        mock_sensor_coordinator = get_mock_sensor_coordinator()
         sensor = HKCSensor(
             "hkc_alarm_instance",
             mock_sensor_data,
-            mock_alarm_coordinator,
-            mock_sensor_coordinator,
+            get_mock_alarm_coordinator(),
+            mock_sensor_coordinator := get_mock_sensor_coordinator(),
         )
         sensor.hass = get_mock_hass()
         sensor.entity_id = "sensor.front_door"  # Set the entity_id manually
@@ -171,20 +148,17 @@ async def test_handle_sensor_coordinator_update():
             "inputState": 0,
         }
         mock_sensor_coordinator.sensor_data = [new_data]
-        mock_alarm_coordinator.panel_time = mock_panel_time
         sensor._handle_coordinator_update()
         assert sensor._input_data == new_data  # Check that _input_data was updated
 
 
 @pytest.mark.asyncio
 async def test_async_update():
-    mock_alarm_coordinator = get_mock_alarm_coordinator()
-    mock_sensor_coordinator = get_mock_sensor_coordinator()
     sensor = HKCSensor(
         "hkc_alarm_instance",
         mock_sensor_data,
-        mock_alarm_coordinator,
-        mock_sensor_coordinator,
+        get_mock_alarm_coordinator(),
+        mock_sensor_coordinator := get_mock_sensor_coordinator(),
     )
     await sensor.async_update()
     mock_sensor_coordinator.async_request_refresh.assert_called()  # Verify that a refresh request was made
