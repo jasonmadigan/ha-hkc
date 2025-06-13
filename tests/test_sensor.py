@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import pytest
-from custom_components.hkc_alarm.alarm_control_panel import HKCAlarmControlPanel
+from custom_components.hkc_alarm.alarm_control_panel import (
+    HKCAlarmControlPanel,
+    AlarmControlPanelState,
+)
 from custom_components.hkc_alarm.sensor import HKCSensor
 from custom_components.hkc_alarm.const import DOMAIN
-from homeassistant.components.alarm_control_panel import AlarmControlPanelState
 from unittest.mock import AsyncMock, patch, MagicMock
 
 
