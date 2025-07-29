@@ -1,7 +1,7 @@
 {
   "domain": "hkc_alarm",
   "name": "HKC Alarm",
-  "version": "1.0.20",
+  "version": "1.1.0",
   "documentation": "https://github.com/jasonmadigan/ha-hkc",
   "issue_tracker": "https://github.com/jasonmadigan/ha-hkc/issues",
   "dependencies": [],
