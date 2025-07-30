@@ -25,5 +25,22 @@
     "abort": {
       "already_configured": "HKC Alarm integration is already configured."
     }
+  },
+  "exceptions": {
+    "disarm_error": {
+      "message": "Unset failed: {error_msg}"
+    },
+    "partset_a_error": {
+      "message": "Part Set A failed: {error_msg}"
+    },
+    "partset_b_error": {
+      "message": "Part Set B failed: {error_msg}"
+    },
+    "fullset_error": {
+      "message": "Full Set failed: {error_msg}"
+    },
+    "unknown_response": {
+      "message": "Unknown response from alarm: {response}"
+    }
   }
 }

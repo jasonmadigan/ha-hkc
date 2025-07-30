@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -5,6 +6,7 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelState,
 )
 from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 
@@ -73,21 +75,50 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             and "display" in self._alarm_coordinator.panel_data
         )
 
+    async def _send_alarm_command(
+        self, alarm_command, refresh_delay: int, error_key: str
+    ) -> None:
+        """Send alarm command and check response."""
+        res = await self.hass.async_add_executor_job(alarm_command)
+        _logger.info("%s log: %s", error_key, res)
+        if res.get("resultCode") != 5:
+            if error_list := res.get("errorList"):
+                error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key=error_key,
+                    translation_placeholders={"error_msg": error_msg},
+                )
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_response",
+                translation_placeholders={"response": res},
+            )
+
+        # Refresh alarm status on successful command
+        if refresh_delay:
+            await asyncio.sleep(refresh_delay)
+            await self._alarm_coordinator.async_force_refresh()
+
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
-        await self.hass.async_add_executor_job(self._hkc_alarm.disarm)
+        await self._send_alarm_command(self._hkc_alarm.disarm, 3, "disarm_error")
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
-        await self.hass.async_add_executor_job(self._hkc_alarm.arm_partset_a)
+        await self._send_alarm_command(
+            self._hkc_alarm.arm_partset_a, 10, "partset_a_error"
+        )
 
     async def async_alarm_arm_night(self, code: str | None = None) -> None:
         """Send arm night command."""
-        await self.hass.async_add_executor_job(self._hkc_alarm.arm_partset_b)
+        await self._send_alarm_command(
+            self._hkc_alarm.arm_partset_b, 10, "partset_b_error"
+        )
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
-        await self.hass.async_add_executor_job(self._hkc_alarm.arm_fullset)
+        await self._send_alarm_command(self._hkc_alarm.arm_fullset, 10, "fullset_error")
 
     @callback
     def _handle_coordinator_update(self) -> None:
