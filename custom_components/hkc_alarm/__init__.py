@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from .config_flow import HKCAlarmConfigFlow
 from .const import DOMAIN, DEFAULT_UPDATE_INTERVAL, CONF_UPDATE_INTERVAL, MIN_UPDATE_INTERVAL
 
 _logger = logging.getLogger(__name__)
@@ -86,6 +87,34 @@ class HKCSensorCoordinator(DataUpdateCoordinator):
             _logger.error(traceback.format_exc())
             raise UpdateFailed(f"Failed to update: {e}")
 
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry):
+    if entry.version > 3:
+        # This means the user has downgraded from a future version
+        return False
+
+    new_data = {**entry.data}
+    new_options = {**entry.options}
+    if entry.version < 3:
+        # Move update_interval to options so it can be changed on the fly
+        new_options[CONF_UPDATE_INTERVAL] = DEFAULT_UPDATE_INTERVAL
+        if (update_interval := new_data.get(CONF_UPDATE_INTERVAL)) is not None:
+            new_options[CONF_UPDATE_INTERVAL] = update_interval
+            del new_data[CONF_UPDATE_INTERVAL]
+
+    hass.config_entries.async_update_entry(
+        entry,
+        data=new_data,
+        options=new_options,
+        version=HKCAlarmConfigFlow.VERSION,
+        minor_version=HKCAlarmConfigFlow.MINOR_VERSION
+    )
+    _logger.debug(
+        "Migration to configuration version %s.%s successful",
+        entry.version,
+        entry.minor_version,
+    )
+    return True
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     panel_id = entry.data["panel_id"]

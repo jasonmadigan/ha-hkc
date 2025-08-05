@@ -12,7 +12,9 @@ _LOGGER = logging.getLogger(__name__)
 class HKCAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HKC Alarm."""
 
-    VERSION = 2
+    VERSION = 3
+    MINOR_VERSION = 0
+    CONNECTION_CLASS = config_entries.CONN_CLASS_CLOUD_POLL
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
