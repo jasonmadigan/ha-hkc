@@ -39,6 +39,9 @@
     "fullset_error": {
       "message": "Full Set failed: {error_msg}"
     },
+    "already_armed": {
+      "message": "Alarm is already armed"
+    },
     "unknown_response": {
       "message": "Unknown response from alarm: {response}"
     }

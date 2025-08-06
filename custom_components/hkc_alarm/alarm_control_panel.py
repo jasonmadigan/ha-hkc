@@ -81,19 +81,27 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         """Send alarm command and check response."""
         res = await self.hass.async_add_executor_job(alarm_command)
         _logger.info("%s log: %s", error_key, res)
-        if res.get("resultCode") != 5:
-            if error_list := res.get("errorList"):
-                error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
+        match res.get("resultCode"):
+            case 5:  # alarm command successful
+                pass
+            case 4:  # alarm is already armed
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key=error_key,
-                    translation_placeholders={"error_msg": error_msg},
+                    translation_key="already_armed"
                 )
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="unknown_response",
-                translation_placeholders={"response": res},
-            )
+            case _:
+                if error_list := res.get("errorList"):
+                    error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key=error_key,
+                        translation_placeholders={"error_msg": error_msg},
+                    )
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="unknown_response",
+                    translation_placeholders={"response": res},
+                )
 
         # Refresh alarm status on successful command
         if refresh_delay:
