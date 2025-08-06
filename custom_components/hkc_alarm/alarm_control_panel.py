@@ -94,7 +94,7 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                     error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
                     raise ServiceValidationError(
                         translation_domain=DOMAIN,
-                        translation_key=command_name,
+                        translation_key=f"{command_name}_error",
                         translation_placeholders={"error_msg": error_msg},
                     )
                 raise HomeAssistantError(
