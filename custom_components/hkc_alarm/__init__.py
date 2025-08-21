@@ -97,7 +97,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry):
     new_options = {**entry.options}
     if entry.version < 3:
         # Move update_interval to options so it can be changed on the fly
-        new_options[CONF_UPDATE_INTERVAL] = DEFAULT_UPDATE_INTERVAL
+        if CONF_UPDATE_INTERVAL not in new_options:
+            new_options[CONF_UPDATE_INTERVAL] = DEFAULT_UPDATE_INTERVAL
         if (update_interval := new_data.get(CONF_UPDATE_INTERVAL)) is not None:
             new_options[CONF_UPDATE_INTERVAL] = update_interval
             del new_data[CONF_UPDATE_INTERVAL]
