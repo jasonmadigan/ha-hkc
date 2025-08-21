@@ -29,5 +29,28 @@
         }
       }
     }
+  },
+  "exceptions": {
+    "disarm_error": {
+      "message": "Unset failed: {error_msg}"
+    },
+    "arm_partset_a_error": {
+      "message": "Part Set A failed: {error_msg}"
+    },
+    "arm_partset_b_error": {
+      "message": "Part Set B failed: {error_msg}"
+    },
+    "arm_fullset_error": {
+      "message": "Full Set failed: {error_msg}"
+    },
+    "already_armed": {
+      "message": "Alarm is already armed"
+    },
+    "already_disarmed": {
+      "message": "Alarm is already disarmed"
+    },
+    "unknown_response": {
+      "message": "Unknown response from alarm: {response}"
+    }
   }
 }

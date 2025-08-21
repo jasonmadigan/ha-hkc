@@ -27,6 +27,11 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
         self.panel_data = None
         # self.sensor_data = None
 
+    async def async_force_refresh(self):
+        """Force refresh alarm coordinator, ignoring debounce."""
+        self._last_update = None
+        return await self.async_refresh()
+
     async def _async_update_data(self):
         def fetch_data():
             self.status = self._hkc_alarm.get_system_status()
