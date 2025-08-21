@@ -30,6 +30,9 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._state = None
         self._alarm_coordinator = alarm_coordinator
 
+        self._attr_has_entity_name = True
+        self._attr_name = None
+
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
@@ -62,10 +65,6 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             "model": "HKC Alarm",
             "sw_version": "1.0.0",
         }
-
-    @property
-    def name(self):
-        return "HKC Alarm System"
 
     @property
     def available(self) -> bool:
