@@ -116,7 +116,7 @@ async def test_name():
         get_mock_alarm_coordinator(),
         get_mock_sensor_coordinator(),
     )
-    assert sensor.name == "Front Door"  # Assuming description is 'Front Door'
+    assert sensor.name == "HKC Alarm System Front Door"  # Assuming description is 'Front Door'
 
 
 @pytest.mark.asyncio
