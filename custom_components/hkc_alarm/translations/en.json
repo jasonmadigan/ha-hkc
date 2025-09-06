@@ -9,12 +9,6 @@
           "panel_id": "Panel ID",
           "update_interval": "Update Interval (seconds)"
         }
-      },
-      "options": {
-        "title": "Options",
-        "data": {
-          "update_interval": "Update Interval (seconds)"
-        }
       }
     },
     "error": {
@@ -24,6 +18,16 @@
     },
     "abort": {
       "already_configured": "HKC Alarm integration is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "update_interval": "Update Interval (seconds)"
+        }
+      }
     }
   },
   "exceptions": {
