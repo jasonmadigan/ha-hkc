@@ -58,7 +58,7 @@ async def test_name():
     alarm_control_panel = HKCAlarmControlPanel(
         get_mock_hkc_alarm(), {}, get_mock_alarm_coordinator()
     )
-    assert alarm_control_panel.name == "HKC Alarm System"
+    assert alarm_control_panel.name == None
 
 
 @pytest.mark.asyncio

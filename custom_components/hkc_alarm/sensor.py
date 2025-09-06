@@ -20,6 +20,9 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         self._alarm_coordinator = alarm_coordinator
         self._sensor_coordinator = sensor_coordinator
 
+        self._attr_has_entity_name = True
+        self._attr_name = input_data["description"]
+
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
@@ -34,10 +37,6 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
             "model": "HKC Alarm",
             "sw_version": "1.0.0",
         }
-
-    @property
-    def name(self):
-        return self._input_data["description"]
 
     def _get_sensor_state(self) -> str:
         """Determine the state of the sensor."""
