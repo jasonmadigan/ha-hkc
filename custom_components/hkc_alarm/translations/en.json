@@ -5,8 +5,10 @@
         "description": "Integration for HKC Alarm systems.",
         "data": {
           "alarm_code": "Alarm Code",
+          "additional_user_codes": "Additional User PINs",
           "panel_password": "Panel Password",
           "panel_id": "Panel ID",
+          "require_user_pin": "Require entering a user PIN to arm/disarm",
           "update_interval": "Update Interval (seconds)"
         }
       }
@@ -14,6 +16,7 @@
     "error": {
       "cannot_connect": "Unable to connect to the HKC Alarm.",
       "invalid_auth": "Invalid authentication details.",
+      "invalid_user_codes": "User PINs must be numeric values separated by commas.",
       "unknown": "An unknown error occurred."
     },
     "abort": {
@@ -25,6 +28,8 @@
       "init": {
         "title": "Options",
         "data": {
+          "additional_user_codes": "Additional User PINs",
+          "require_user_pin": "Require entering a user PIN to arm/disarm",
           "update_interval": "Update Interval (seconds)"
         }
       }
@@ -48,6 +53,18 @@
     },
     "already_disarmed": {
       "message": "Alarm is already disarmed"
+    },
+    "code_required": {
+      "message": "Enter a configured HKC user PIN to control the alarm."
+    },
+    "invalid_user_code": {
+      "message": "The entered HKC user PIN is not configured for this integration."
+    },
+    "multi_user_not_supported": {
+      "message": "The installed pyhkc version does not support selecting different HKC user PINs per command."
+    },
+    "block_commands_not_supported": {
+      "message": "The installed pyhkc version does not support separate alarm areas for this configuration."
     },
     "unknown_response": {
       "message": "Unknown response from alarm: {response}"

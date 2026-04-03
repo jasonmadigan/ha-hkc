@@ -5,3 +5,6 @@ DOMAIN = "hkc_alarm"
 DEFAULT_UPDATE_INTERVAL = 60  # Default update interval in seconds
 MIN_UPDATE_INTERVAL = 30  # Minimum update interval in seconds
 CONF_UPDATE_INTERVAL = "update_interval"
+CONF_ADDITIONAL_USER_CODES = "additional_user_codes"
+CONF_REQUIRE_USER_PIN = "require_user_pin"
+DEFAULT_REQUIRE_USER_PIN = False

@@ -15,6 +15,8 @@ You will need [HACS](https://hacs.xyz) installed in your Home Assistant server. 
 * **Panel ID**: Your HKC Alarm Panel ID (same as panel ID in HKC mobile app)
 * **Panel Password**: Your HKC Alarm Panel Password (same as panel password from HKC mobile app)
 * **Alarm Code**: Your HKC Alarm Code/PIN
+* **Additional User PINs**: (Optional) Extra HKC user PINs separated by commas to enable multi-user arm/disarm from Home Assistant
+* **Require entering a user PIN to arm/disarm**: (Optional) Forces the Home Assistant alarm panel card keypad to be used for control
 * **Update Interval (seconds)**: (Optional) Custom update interval for fetching data from HKC Alarm. Default is 60 seconds. Recommend keeping this at 60s, as this is similar to the Mobile App's polling interval, and we want to respect HKC's API.
 
 [![Open your Home Assistant instance and add this integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hkc_alarm)
@@ -32,6 +34,13 @@ The *State* of the alarm control panel is either `armed_home`, `armed_away`, `ar
 - `armed_home` maps to "Partset A"
 - `armed_night` maps to "Partset B"
 - `disarmed` maps to, as you'd expect, "Disarmed"
+
+## Multi-user and PIN entry
+
+The integration now supports two Home Assistant alarm panel workflows:
+
+* If you configure multiple HKC user PINs and your panel users have access to different blocks, the integration will create separate alarm views for those homes/areas and will only expose the sensors returned for each configured user.
+* If you enable **Require entering a user PIN to arm/disarm**, the standard Home Assistant [alarm panel card](https://www.home-assistant.io/dashboards/alarm-panel/) keypad is used before control actions are sent.
 
 ## Sample Automation to notify about alarm state changes
 

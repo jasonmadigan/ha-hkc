@@ -1,14 +1,18 @@
 import asyncio
 import logging
+
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
     AlarmControlPanelState,
+    CodeFormat,
 )
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
 from .const import DOMAIN
+from .pyhkc_compat import build_block_alarm_command
 
 
 _logger = logging.getLogger(__name__)
@@ -23,20 +27,41 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
 
     _attr_code_arm_required = False
 
-    def __init__(self, hkc_alarm, device_info, alarm_coordinator):
+    def __init__(
+        self,
+        hkc_alarm,
+        view,
+        alarm_coordinator,
+        require_user_pin,
+    ):
         super().__init__(alarm_coordinator)
         self._hkc_alarm = hkc_alarm
-        self._device_info = device_info
-        self._state = None
+        self._view = view
         self._alarm_coordinator = alarm_coordinator
+        self._configured_user_codes = [str(code) for code in view["allowed_user_codes"]]
+        self._primary_user_code = str(view["user_code"])
+        self._require_user_pin = require_user_pin
+        self._block_numbers = list(view["block_numbers"])
 
         self._attr_has_entity_name = True
-        self._attr_name = None
+        self._attr_name = None if not view["multi_view"] else view["label"]
+        self._attr_code_arm_required = self._requires_user_pin
+        self._attr_code_format = CodeFormat.NUMBER if self._shows_keypad else None
+
+    @property
+    def _shows_keypad(self) -> bool:
+        return self._require_user_pin
+
+    @property
+    def _requires_user_pin(self) -> bool:
+        return self._shows_keypad
 
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
-        return str(self._hkc_alarm.panel_id) + "panel"
+        if not self._view["multi_view"]:
+            return str(self._hkc_alarm.panel_id) + "panel"
+        return f"{self._hkc_alarm.panel_id}panel_{self._view['key']}"
 
     @property
     def extra_state_attributes(self):
@@ -44,7 +69,11 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         if self._alarm_coordinator.panel_data is None:
             return None
 
-        # Extract the desired attributes from self._coordinator.panel_data
+        entry_data = {}
+        if getattr(self, "hass", None) is not None and self.coordinator.config_entry is not None:
+            entry_data = self.hass.data[DOMAIN][self.coordinator.config_entry.entry_id]
+        metadata = entry_data.get("device_metadata", {})
+        temporary_user = entry_data.get("temporary_user_by_code", {}).get(self._primary_user_code, {})
         attributes = {
             "Green LED": self._alarm_coordinator.panel_data["greenLed"],
             "Red LED": self._alarm_coordinator.panel_data["redLed"],
@@ -54,16 +83,40 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             "Display": self._alarm_coordinator.panel_data["display"],
             "Blink": self._alarm_coordinator.panel_data["blink"],
         }
+        if metadata.get("panel_name"):
+            attributes["Panel Name"] = metadata["panel_name"]
+        if metadata.get("installation_name"):
+            attributes["Installation Name"] = metadata["installation_name"]
+        if metadata.get("site_name"):
+            attributes["Site Name"] = metadata["site_name"]
+        if metadata.get("output_count") is not None:
+            attributes["Output Count"] = metadata["output_count"]
+        if "subscriptionDaysLeft" in temporary_user:
+            attributes["Temporary User Subscription Days Left"] = temporary_user[
+                "subscriptionDaysLeft"
+            ]
+        if self._block_numbers:
+            attributes["Blocks"] = self._block_numbers
         return attributes
 
     @property
     def device_info(self):
+        entry_data = {}
+        if getattr(self, "hass", None) is not None and self.coordinator.config_entry is not None:
+            entry_data = self.hass.data[DOMAIN][self.coordinator.config_entry.entry_id]
+        metadata = entry_data.get("device_metadata", {})
+        identifier = (
+            (DOMAIN, self._hkc_alarm.panel_id)
+            if not self._view["multi_view"]
+            else (DOMAIN, f"{self._hkc_alarm.panel_id}_{self._view['key']}")
+        )
         return {
-            "identifiers": {(DOMAIN, self._hkc_alarm.panel_id)},
-            "name": "HKC Alarm System",
+            "identifiers": {identifier},
+            "name": self._view["label"],
             "manufacturer": "HKC",
-            "model": "HKC Alarm",
-            "sw_version": "1.0.0",
+            "model": metadata.get("model", "HKC Alarm"),
+            "sw_version": metadata.get("sw_version", "1.0.0"),
+            "serial_number": metadata.get("serial_number"),
         }
 
     @property
@@ -74,11 +127,48 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             and "display" in self._alarm_coordinator.panel_data
         )
 
-    async def _send_alarm_command(self, command_name: str, refresh_delay: int) -> None:
+    def _resolve_command_user_code(self, code: str | None) -> str:
+        user_code = (code or "").strip()
+        if not user_code:
+            if self._requires_user_pin:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="code_required",
+                )
+            return self._primary_user_code
+
+        if user_code not in self._configured_user_codes:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_user_code",
+            )
+
+        return user_code
+
+    async def _send_alarm_command(
+        self,
+        command_name: str,
+        refresh_delay: int,
+        code: str | None,
+    ) -> None:
         """Send alarm command and check response."""
         if (alarm_command := getattr(self._hkc_alarm, command_name)) is None:
             raise RuntimeError(f"unknown alarm command {command_name}")
-        res = await self.hass.async_add_executor_job(alarm_command)
+        user_code = self._resolve_command_user_code(code)
+        try:
+            command = build_block_alarm_command(
+                self._hkc_alarm,
+                command_name,
+                user_code,
+                self._primary_user_code,
+                self._block_numbers[0] if len(self._block_numbers) == 1 else None,
+            )
+        except TypeError:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="block_commands_not_supported",
+            ) from None
+        res = await self.hass.async_add_executor_job(command)
         command_type = command_name.split("_")[0]
         match res.get("resultCode"):
             case 5:  # alarm command successful
@@ -109,24 +199,35 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
-        await self._send_alarm_command("disarm", 3)
+        await self._send_alarm_command("disarm", 3, code)
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
-        await self._send_alarm_command("arm_partset_a", 10)
+        await self._send_alarm_command("arm_partset_a", 10, code)
 
     async def async_alarm_arm_night(self, code: str | None = None) -> None:
         """Send arm night command."""
-        await self._send_alarm_command("arm_partset_b", 10)
+        await self._send_alarm_command("arm_partset_b", 10, code)
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
-        await self._send_alarm_command("arm_fullset", 10)
+        await self._send_alarm_command("arm_fullset", 10, code)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        blocks = self._alarm_coordinator.status.get("blocks", [])
+        status = self._alarm_coordinator.status_by_user.get(
+            self._primary_user_code,
+            self._alarm_coordinator.status,
+        )
+        blocks = status.get("blocks", [])
+        if self._block_numbers:
+            selected_blocks = []
+            for block_number in self._block_numbers:
+                index = block_number - 1
+                if 0 <= index < len(blocks):
+                    selected_blocks.append(blocks[index])
+            blocks = selected_blocks
 
         if any(block["inAlarm"] for block in blocks):
             self._attr_alarm_state = AlarmControlPanelState.TRIGGERED
@@ -143,15 +244,18 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    hkc_alarm = hass.data[DOMAIN][entry.entry_id]["hkc_alarm"]
-    alarm_coordinator = hass.data[DOMAIN][entry.entry_id]["alarm_coordinator"]
-
-    device_info = {
-        "identifiers": {(DOMAIN, entry.entry_id)},
-        "name": "HKC Alarm System",
-        "manufacturer": "HKC",
-    }
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    hkc_alarm = entry_data["hkc_alarm"]
+    alarm_coordinator = entry_data["alarm_coordinator"]
     async_add_entities(
-        [HKCAlarmControlPanel(hkc_alarm, device_info, alarm_coordinator)],
+        [
+            HKCAlarmControlPanel(
+                hkc_alarm,
+                view,
+                alarm_coordinator,
+                entry_data["require_user_pin"],
+            )
+            for view in entry_data["views"]
+        ],
         True,
     )
