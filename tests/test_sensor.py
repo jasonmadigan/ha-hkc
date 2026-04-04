@@ -1,15 +1,17 @@
 from unittest.mock import patch
+
 import pytest
-from custom_components.hkc_alarm.sensor import HKCSensor
+
 from custom_components.hkc_alarm.const import DOMAIN
+from custom_components.hkc_alarm.sensor import HKCSensor
 from .mock_common import (
-    get_mock_hkc_alarm,
     get_mock_alarm_coordinator,
-    get_mock_sensor_coordinator,
     get_mock_hass,
+    get_mock_hkc_alarm,
+    get_mock_sensor_coordinator,
 )
 
-# Mock data for HKCSensor to process
+
 mock_sensor_data = {
     "inputId": "1",
     "description": "Front Door",
@@ -17,7 +19,6 @@ mock_sensor_data = {
     "inputState": 1,
 }
 
-# Mock tampered sensor data for HKCSensor to process
 mock_tampered_sensor_data = {
     "inputId": "2",
     "description": "Front Door",
@@ -26,68 +27,69 @@ mock_tampered_sensor_data = {
 }
 
 
+def build_view(user_code="1234", label="HKC Alarm System", multi_view=False):
+    return {
+        "key": "default" if not multi_view else f"user_{user_code}",
+        "user_code": user_code,
+        "allowed_user_codes": [user_code],
+        "block_numbers": [],
+        "label": label,
+        "multi_view": multi_view,
+    }
+
+
 @pytest.mark.asyncio
 async def test_hkc_sensor_state():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
         sensor = HKCSensor(
-            "hkc_alarm_instance",
+            get_mock_hkc_alarm(),
             mock_sensor_data,
             get_mock_alarm_coordinator(),
             mock_sensor_coordinator := get_mock_sensor_coordinator(),
+            build_view(),
         )
         sensor.hass = get_mock_hass()
         mock_sensor_coordinator.sensor_data = [mock_sensor_data]
+        mock_sensor_coordinator.inputs_by_user = {"1234": [mock_sensor_data]}
         sensor._handle_coordinator_update()
 
-        print(f"Mock Sensor Data: {mock_sensor_data}")  # Print the mock data
-        print(f"Sensor State: {sensor.state}")  # Print the actual state
-
-        assert (
-            sensor.state == "Open"
-        )  # as per your logic, inputState being 1 should result in state "Open"
+        assert sensor.state == "Open"
 
 
 @pytest.mark.asyncio
 async def test_hkc_sensor_tampered_state():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
         sensor = HKCSensor(
-            "hkc_alarm_instance",
+            get_mock_hkc_alarm(),
             mock_tampered_sensor_data,
             get_mock_alarm_coordinator(),
             mock_sensor_coordinator := get_mock_sensor_coordinator(),
+            build_view(),
         )
         sensor.hass = get_mock_hass()
         mock_sensor_coordinator.sensor_data = [mock_tampered_sensor_data]
+        mock_sensor_coordinator.inputs_by_user = {"1234": [mock_tampered_sensor_data]}
         sensor._handle_coordinator_update()
 
-        print(f"Mock Sensor Data: {mock_sensor_data}")
-        print(f"Sensor State: {sensor.state}")
-
-        assert (
-            sensor.state == "Tamper"
-        )  # as per your logic, inputState being 2 should result in state "Tamper"
+        assert sensor.state == "Tamper"
 
 
 @pytest.mark.asyncio
 async def test_hkc_sensor_invalid_timestamp():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
         sensor = HKCSensor(
-            "hkc_alarm_instance",
+            get_mock_hkc_alarm(),
             mock_sensor_data,
             get_mock_alarm_coordinator(),
             mock_sensor_coordinator := get_mock_sensor_coordinator(),
+            build_view(),
         )
         sensor.hass = get_mock_hass()
-        mock_sensor_coordinator.sensor_data = [
-            {
-                **mock_sensor_data,
-                "timestamp": "invalid_timestamp",
-            }
-        ]
+        invalid_data = {**mock_sensor_data, "timestamp": "invalid_timestamp"}
+        mock_sensor_coordinator.sensor_data = [invalid_data]
+        mock_sensor_coordinator.inputs_by_user = {"1234": [invalid_data]}
         sensor._handle_coordinator_update()
-        assert (
-            sensor.state == "Unknown"
-        )  # as per your logic, an invalid timestamp should result in state "Unknown"
+        assert sensor.state == "Unknown"
 
 
 @pytest.mark.asyncio
@@ -97,6 +99,7 @@ async def test_device_info():
         mock_sensor_data,
         get_mock_alarm_coordinator(),
         get_mock_sensor_coordinator(),
+        build_view(),
     )
     expected_device_info = {
         "identifiers": {(DOMAIN, "hkc_alarm_instance")},
@@ -111,21 +114,23 @@ async def test_device_info():
 @pytest.mark.asyncio
 async def test_name():
     sensor = HKCSensor(
-        "hkc_alarm_instance",
+        get_mock_hkc_alarm(),
         mock_sensor_data,
         get_mock_alarm_coordinator(),
         get_mock_sensor_coordinator(),
+        build_view(),
     )
-    assert sensor.name == "Front Door"  # Assuming description is 'Front Door'
+    assert sensor.name == "Front Door"
 
 
 @pytest.mark.asyncio
 async def test_should_poll():
     sensor = HKCSensor(
-        "hkc_alarm_instance",
+        get_mock_hkc_alarm(),
         mock_sensor_data,
         get_mock_alarm_coordinator(),
         get_mock_sensor_coordinator(),
+        build_view(),
     )
     assert sensor.should_poll is False
 
@@ -134,13 +139,14 @@ async def test_should_poll():
 async def test_handle_sensor_coordinator_update():
     with patch.object(HKCSensor, "async_write_ha_state", return_value=None):
         sensor = HKCSensor(
-            "hkc_alarm_instance",
+            get_mock_hkc_alarm(),
             mock_sensor_data,
             get_mock_alarm_coordinator(),
             mock_sensor_coordinator := get_mock_sensor_coordinator(),
+            build_view(),
         )
         sensor.hass = get_mock_hass()
-        sensor.entity_id = "sensor.front_door"  # Set the entity_id manually
+        sensor.entity_id = "sensor.front_door"
         new_data = {
             "inputId": "1",
             "description": "Front Door",
@@ -148,17 +154,31 @@ async def test_handle_sensor_coordinator_update():
             "inputState": 0,
         }
         mock_sensor_coordinator.sensor_data = [new_data]
+        mock_sensor_coordinator.inputs_by_user = {"1234": [new_data]}
         sensor._handle_coordinator_update()
-        assert sensor._input_data == new_data  # Check that _input_data was updated
+        assert sensor._input_data == new_data
+
+
+@pytest.mark.asyncio
+async def test_multi_view_sensor_unique_id_is_namespaced():
+    sensor = HKCSensor(
+        get_mock_hkc_alarm(),
+        mock_sensor_data,
+        get_mock_alarm_coordinator(),
+        get_mock_sensor_coordinator(),
+        build_view(user_code="5678", label="Guest Suite", multi_view=True),
+    )
+    assert sensor.unique_id == "hkc_alarm_instance_user_5678_1"
 
 
 @pytest.mark.asyncio
 async def test_async_update():
     sensor = HKCSensor(
-        "hkc_alarm_instance",
+        get_mock_hkc_alarm(),
         mock_sensor_data,
         get_mock_alarm_coordinator(),
         mock_sensor_coordinator := get_mock_sensor_coordinator(),
+        build_view(),
     )
     await sensor.async_update()
-    mock_sensor_coordinator.async_request_refresh.assert_called()  # Verify that a refresh request was made
+    mock_sensor_coordinator.async_request_refresh.assert_called()

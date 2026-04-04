@@ -9,9 +9,32 @@ from .const import DOMAIN
 _logger = logging.getLogger(__name__)
 
 
+def _input_identifier(input_data):
+    """Return a stable input identifier from HKC payloads."""
+    return input_data.get("inputId", input_data.get("input"))
+
+
+def _dedupe_inputs(inputs):
+    """Return inputs de-duplicated by HKC input identifier."""
+    deduped = {}
+    for input_data in inputs:
+        input_id = _input_identifier(input_data)
+        if input_id is None:
+            continue
+        deduped.setdefault(str(input_id), input_data)
+    return list(deduped.values())
+
+
 class HKCSensor(CoordinatorEntity, SensorEntity):
 
-    def __init__(self, hkc_alarm, input_data, alarm_coordinator, sensor_coordinator):
+    def __init__(
+        self,
+        hkc_alarm,
+        input_data,
+        alarm_coordinator,
+        sensor_coordinator,
+        view,
+    ):
         super().__init__(
             sensor_coordinator
         )  # Ensure the coordinator is properly initialized
@@ -19,6 +42,7 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
         self._input_data = input_data
         self._alarm_coordinator = alarm_coordinator
         self._sensor_coordinator = sensor_coordinator
+        self._view = view
 
         self._attr_has_entity_name = True
         self._attr_name = input_data["description"]
@@ -26,17 +50,45 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
     @property
     def unique_id(self):
         """Return the unique ID of the sensor."""
-        return str(self._hkc_alarm.panel_id) + str(self._input_data["inputId"])
+        input_id = _input_identifier(self._input_data)
+        if not self._view["multi_view"]:
+            return str(self._hkc_alarm.panel_id) + str(input_id)
+        return f"{self._hkc_alarm.panel_id}_{self._view['key']}_{input_id}"
 
     @property
     def device_info(self):
+        entry_data = {}
+        if getattr(self, "hass", None) is not None and self.coordinator.config_entry is not None:
+            entry_data = self.hass.data[DOMAIN][self.coordinator.config_entry.entry_id]
+        metadata = entry_data.get("device_metadata", {})
+        identifier = (
+            (DOMAIN, self._hkc_alarm.panel_id)
+            if not self._view["multi_view"]
+            else (DOMAIN, f"{self._hkc_alarm.panel_id}_{self._view['key']}")
+        )
         return {
-            "identifiers": {(DOMAIN, self._hkc_alarm.panel_id)},
-            "name": "HKC Alarm System",
+            "identifiers": {identifier},
+            "name": self._view["label"],
             "manufacturer": "HKC",
-            "model": "HKC Alarm",
-            "sw_version": "1.0.0",
+            "model": metadata.get("model", "HKC Alarm"),
+            "sw_version": metadata.get("sw_version", "1.0.0"),
+            "serial_number": metadata.get("serial_number"),
         }
+
+    @property
+    def extra_state_attributes(self):
+        """Return additional HKC input metadata."""
+        attributes = {}
+        for source_key, target_key in (
+            ("inputType", "Input Type"),
+            ("actionInhibit", "Action Inhibit"),
+            ("cameraId", "Camera ID"),
+            ("visibleUserCodes", "Visible User Codes"),
+            ("timestamp", "Last Trigger Timestamp"),
+        ):
+            if source_key in self._input_data:
+                attributes[target_key] = self._input_data[source_key]
+        return attributes or None
 
     def _get_sensor_state(self) -> str:
         """Determine the state of the sensor."""
@@ -106,11 +158,15 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         # Search for the matching sensor data based on inputId
+        sensor_data_list = self._sensor_coordinator.inputs_by_user.get(
+            self._view["user_code"],
+            self._sensor_coordinator.sensor_data,
+        )
         matching_sensor_data = next(
             (
                 sensor_data
-                for sensor_data in self._sensor_coordinator.sensor_data
-                if sensor_data.get("inputId") == self._input_data.get("inputId")
+                for sensor_data in sensor_data_list
+                if _input_identifier(sensor_data) == _input_identifier(self._input_data)
             ),
             None,  # Default to None if no matching sensor data is found
         )
@@ -121,26 +177,75 @@ class HKCSensor(CoordinatorEntity, SensorEntity):
             self._attr_native_value = self._get_sensor_state()
         else:
             _logger.warning(
-                f"No matching sensor data found for inputId {self._input_data.get('inputId')}"
+                "No matching sensor data found for input %s",
+                _input_identifier(self._input_data),
             )
 
         self.async_write_ha_state()  # Update the state with the latest data
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    hkc_alarm = hass.data[DOMAIN][entry.entry_id]["hkc_alarm"]
-    alarm_coordinator = hass.data[DOMAIN][entry.entry_id]["alarm_coordinator"]
-    sensor_coordinator = hass.data[DOMAIN][entry.entry_id]["sensor_coordinator"]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    hkc_alarm = entry_data["hkc_alarm"]
+    alarm_coordinator = entry_data["alarm_coordinator"]
+    sensor_coordinator = entry_data["sensor_coordinator"]
+    entity_map = entry_data.get("entity_map") or {}
 
-    all_inputs = sensor_coordinator.data
-    # Filter out the inputs with empty description
-    filtered_inputs = [
-        input_data for input_data in all_inputs if input_data["description"]
-    ]
+    entities = []
+    if entity_map.get("blocks"):
+        all_inputs = []
+        for block in entity_map.get("blocks", []):
+            all_inputs.extend(block.get("inputs", []))
+        all_inputs.extend(entity_map.get("sharedInputs", []))
+        all_inputs.extend(entity_map.get("ambiguousInputs", []))
+
+        sensor_view = {
+            "key": "sensors",
+            "user_code": entry_data["configured_user_codes"][0],
+            "allowed_user_codes": entry_data["configured_user_codes"],
+            "block_numbers": [],
+            "label": f"{entry_data.get('device_metadata', {}).get('panel_name', 'HKC Alarm System')} Sensors",
+            "multi_view": True,
+            "kind": "sensors",
+        }
+        entities.extend(
+            [
+                HKCSensor(
+                    hkc_alarm,
+                    input_data,
+                    alarm_coordinator,
+                    sensor_coordinator,
+                    sensor_view,
+                )
+                for input_data in _dedupe_inputs(all_inputs)
+                if input_data.get("description")
+            ]
+        )
+    else:
+        for view in entry_data["views"]:
+            all_inputs = sensor_coordinator.inputs_by_user.get(
+                view["user_code"],
+                sensor_coordinator.data,
+            )
+            filtered_inputs = [
+                input_data
+                for input_data in all_inputs
+                if input_data["description"]
+            ]
+            entities.extend(
+                [
+                    HKCSensor(
+                        hkc_alarm,
+                        input_data,
+                        alarm_coordinator,
+                        sensor_coordinator,
+                        view,
+                    )
+                    for input_data in filtered_inputs
+                ]
+            )
+
     async_add_entities(
-        [
-            HKCSensor(hkc_alarm, input_data, alarm_coordinator, sensor_coordinator)
-            for input_data in filtered_inputs
-        ],
+        entities,
         True,
     )
