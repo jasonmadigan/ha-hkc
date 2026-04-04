@@ -85,6 +85,20 @@ def build_alarm_views(
     supports_multi_view: bool = False,
 ) -> list[dict]:
     """Build logical alarm views from configured user codes."""
+    if len(configured_user_codes) <= 1 or not supports_multi_view:
+        return [
+            {
+                "key": "default",
+                "user_code": configured_user_codes[0],
+                "allowed_user_codes": [configured_user_codes[0]],
+                "block_numbers": [],
+                "label": "HKC Alarm System",
+                "multi_view": False,
+                "inputs": [],
+                "kind": "panel",
+            }
+        ]
+
     if entity_map and entity_map.get("blocks"):
         views: list[dict] = []
         for block in entity_map["blocks"]:
@@ -105,20 +119,6 @@ def build_alarm_views(
             )
 
         return views
-
-    if len(configured_user_codes) <= 1 or not supports_multi_view:
-        return [
-            {
-                "key": "default",
-                "user_code": configured_user_codes[0],
-                "allowed_user_codes": [configured_user_codes[0]],
-                "block_numbers": [],
-                "label": "HKC Alarm System",
-                "multi_view": False,
-                "inputs": [],
-                "kind": "panel",
-            }
-        ]
 
     views: list[dict] = []
     access_summary = access_summary or {}

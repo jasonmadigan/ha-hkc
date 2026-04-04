@@ -192,6 +192,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     entity_map = entry_data.get("entity_map") or {}
 
     entities = []
+    views = entry_data["views"]
+    single_device = len(views) == 1 and not views[0]["multi_view"]
+
     if entity_map.get("blocks"):
         all_inputs = []
         for block in entity_map.get("blocks", []):
@@ -199,15 +202,18 @@ async def async_setup_entry(hass, entry, async_add_entities):
         all_inputs.extend(entity_map.get("sharedInputs", []))
         all_inputs.extend(entity_map.get("ambiguousInputs", []))
 
-        sensor_view = {
-            "key": "sensors",
-            "user_code": entry_data["configured_user_codes"][0],
-            "allowed_user_codes": entry_data["configured_user_codes"],
-            "block_numbers": [],
-            "label": f"{entry_data.get('device_metadata', {}).get('panel_name', 'HKC Alarm System')} Sensors",
-            "multi_view": True,
-            "kind": "sensors",
-        }
+        if single_device:
+            sensor_view = views[0]
+        else:
+            sensor_view = {
+                "key": "sensors",
+                "user_code": entry_data["configured_user_codes"][0],
+                "allowed_user_codes": entry_data["configured_user_codes"],
+                "block_numbers": [],
+                "label": f"{entry_data.get('device_metadata', {}).get('panel_name', 'HKC Alarm System')} Sensors",
+                "multi_view": True,
+                "kind": "sensors",
+            }
         entities.extend(
             [
                 HKCSensor(

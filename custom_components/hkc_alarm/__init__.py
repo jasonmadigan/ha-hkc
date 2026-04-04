@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from pyhkc.hkc_api import HKCAlarm
 
@@ -274,6 +275,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "sensor_coordinator": sensor_coordinator,
     }
 
+    # clean up orphaned devices from pre-fix multi-view code
+    expected_identifiers = {
+        (DOMAIN, v["key"] if v["multi_view"] else hkc_alarm.panel_id)
+        for v in views
+    }
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        if not any(ident in expected_identifiers for ident in device.identifiers):
+            _logger.info("Removing orphaned device %s (%s)", device.name, device.id)
+            device_registry.async_remove_device(device.id)
+
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     await hass.config_entries.async_forward_entry_setups(
@@ -286,6 +298,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: dr.DeviceEntry,
+) -> bool:
+    """Allow removal of devices that are no longer active."""
+    return True
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)

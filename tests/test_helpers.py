@@ -56,6 +56,27 @@ def test_build_alarm_views_multi_user_uses_block_descriptions():
     assert views[1]["label"] == "Guest Suite"
 
 
+def test_build_alarm_views_single_user_with_entity_map_stays_single_device():
+    views = build_alarm_views(
+        ["1234"],
+        entity_map={
+            "blocks": [
+                {
+                    "block": 1,
+                    "description": "Block 1",
+                    "accessUserCodes": [1234],
+                    "inputs": [{"inputId": "1", "description": "Zone 1"}],
+                }
+            ]
+        },
+        supports_multi_view=True,
+    )
+
+    assert len(views) == 1
+    assert views[0]["multi_view"] is False
+    assert views[0]["key"] == "default"
+
+
 def test_build_alarm_views_prefers_entity_map_blocks():
     views = build_alarm_views(
         ["1111", "2222"],
