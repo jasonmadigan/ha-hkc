@@ -128,7 +128,9 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         )
 
     def _resolve_command_user_code(self, code: str | None) -> str:
-        user_code = (code or "").strip()
+        user_code = str(code or "").strip()
+        if user_code.lower().startswith("undefined"):
+            user_code = user_code[len("undefined") :].strip()
         if not user_code:
             if self._requires_user_pin:
                 raise ServiceValidationError(

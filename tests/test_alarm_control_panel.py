@@ -176,3 +176,34 @@ async def test_missing_user_pin_is_rejected_when_required():
 
     with pytest.raises(ServiceValidationError):
         await alarm_control_panel.async_alarm_disarm()
+
+
+@pytest.mark.asyncio
+async def test_user_pin_with_undefined_prefix_is_normalized():
+    hkc_alarm = get_mock_hkc_alarm()
+    alarm_control_panel = HKCAlarmControlPanel(
+        hkc_alarm,
+        build_view(),
+        mock_alarm_coordinator := get_mock_alarm_coordinator(),
+        True,
+    )
+    alarm_control_panel.hass = get_mock_hass()
+
+    await alarm_control_panel.async_alarm_disarm("undefined1234")
+
+    assert hkc_alarm.command_calls[-1] == ("disarm", "1234", None)
+    mock_alarm_coordinator.async_force_refresh.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_user_pin_with_only_undefined_prefix_is_rejected():
+    alarm_control_panel = HKCAlarmControlPanel(
+        get_mock_hkc_alarm(),
+        build_view(),
+        get_mock_alarm_coordinator(),
+        True,
+    )
+    alarm_control_panel.hass = get_mock_hass()
+
+    with pytest.raises(ServiceValidationError):
+        await alarm_control_panel.async_alarm_disarm("undefined")
