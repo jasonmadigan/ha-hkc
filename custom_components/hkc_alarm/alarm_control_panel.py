@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -11,7 +12,7 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, EVENT_ALARM_COMMAND_EXECUTED
 from .pyhkc_compat import build_block_alarm_command
 
 
@@ -42,6 +43,9 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._primary_user_code = str(view["user_code"])
         self._require_user_pin = require_user_pin
         self._block_numbers = list(view["block_numbers"])
+        self._last_command = None
+        self._last_command_at = None
+        self._last_command_state = None
 
         self._attr_has_entity_name = True
         self._attr_name = None if not view["multi_view"] else view["label"]
@@ -97,6 +101,12 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             ]
         if self._block_numbers:
             attributes["Blocks"] = self._block_numbers
+        if self._last_command is not None:
+            attributes["Last Command"] = self._last_command
+        if self._last_command_state is not None:
+            attributes["Last Command State"] = self._last_command_state.value
+        if self._last_command_at is not None:
+            attributes["Last Command At"] = self._last_command_at.isoformat()
         return attributes
 
     @property
@@ -145,6 +155,36 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
 
         return user_code
 
+    def _state_for_command(self, command_name: str) -> AlarmControlPanelState | None:
+        return {
+            "disarm": AlarmControlPanelState.DISARMED,
+            "arm_partset_a": AlarmControlPanelState.ARMED_HOME,
+            "arm_partset_b": AlarmControlPanelState.ARMED_NIGHT,
+            "arm_fullset": AlarmControlPanelState.ARMED_AWAY,
+        }.get(command_name)
+
+    def _update_command_feedback(self, command_name: str, user_code: str) -> None:
+        self._last_command = command_name
+        self._last_command_at = datetime.now(timezone.utc)
+        self._last_command_state = self._state_for_command(command_name)
+        if self._last_command_state is not None:
+            self._attr_alarm_state = self._last_command_state
+
+        if getattr(self, "hass", None) is not None:
+            self.hass.bus.async_fire(
+                EVENT_ALARM_COMMAND_EXECUTED,
+                {
+                    "entity_id": self.entity_id,
+                    "command": command_name,
+                    "state": self._last_command_state.value
+                    if self._last_command_state is not None
+                    else None,
+                    "user_code": user_code,
+                },
+            )
+
+        self.async_write_ha_state()
+
     async def _send_alarm_command(
         self,
         command_name: str,
@@ -172,7 +212,7 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         command_type = command_name.split("_")[0]
         match res.get("resultCode"):
             case 5:  # alarm command successful
-                pass
+                self._update_command_feedback(command_name, user_code)
             case 4:  # alarm is already in current state
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
