@@ -6,6 +6,7 @@ class MockAlarmCoordinator:
     async_request_refresh = AsyncMock()
     async_force_refresh = AsyncMock()
     last_update_success = True  # or False, depending on what you want to test
+    config_entry = None
     status = {}
     status_by_user = {}
     panel_time = datetime.now(timezone.utc) - timedelta(seconds=120)
@@ -77,5 +78,6 @@ def get_mock_hass():
     mock_hass.async_add_executor_job = AsyncMock(
         side_effect=lambda func, *args: func(*args)
     )
+    mock_hass.bus.async_fire = MagicMock()
     mock_hass.data.get.return_value = {}
     return mock_hass

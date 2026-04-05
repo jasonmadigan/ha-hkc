@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState, CodeFormat
@@ -142,11 +142,47 @@ async def test_arm_command_uses_default_view_user_without_pin():
         mock_alarm_coordinator := get_mock_alarm_coordinator(),
         False,
     )
-    alarm_control_panel.hass = get_mock_hass()
+    mock_hass = get_mock_hass()
+    alarm_control_panel.hass = mock_hass
 
-    await alarm_control_panel.async_alarm_arm_home()
+    with patch(
+        "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        await alarm_control_panel.async_alarm_arm_home()
 
     assert hkc_alarm.command_calls[-1] == ("arm_partset_a", "5678", 1)
+    assert alarm_control_panel.alarm_state is None
+    assert alarm_control_panel.extra_state_attributes["Last Command"] == "arm_partset_a"
+    assert alarm_control_panel.extra_state_attributes["Last Command State"] == "armed_home"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "success"
+    assert mock_hass.bus.async_fire.called
+    mock_alarm_coordinator.async_force_refresh.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_disarm_command_updates_feedback_without_state_change():
+    hkc_alarm = get_mock_hkc_alarm()
+    alarm_control_panel = HKCAlarmControlPanel(
+        hkc_alarm,
+        build_view(),
+        mock_alarm_coordinator := get_mock_alarm_coordinator(),
+        False,
+    )
+    mock_hass = get_mock_hass()
+    alarm_control_panel.hass = mock_hass
+
+    with patch(
+        "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        await alarm_control_panel.async_alarm_disarm()
+
+    assert hkc_alarm.command_calls[-1] == ("disarm", "1234")
+    assert alarm_control_panel.alarm_state is None
+    assert alarm_control_panel.extra_state_attributes["Last Command"] == "disarm"
+    assert alarm_control_panel.extra_state_attributes["Last Command State"] == "disarmed"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "success"
     mock_alarm_coordinator.async_force_refresh.assert_called()
 
 

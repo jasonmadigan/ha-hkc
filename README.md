@@ -42,21 +42,29 @@ The integration now supports two Home Assistant alarm panel workflows:
 * If you configure multiple HKC user PINs and your panel users have access to different blocks, the integration will create separate alarm views for those homes/areas and will only expose the sensors returned for each configured user.
 * If you enable **Require entering a user PIN to arm/disarm**, the standard Home Assistant [alarm panel card](https://www.home-assistant.io/dashboards/alarm-panel/) keypad is used before control actions are sent.
 
+## Command feedback
+
+When an arm/disarm command succeeds, the integration immediately exposes command feedback from the API response via `Last Command`, `Last Command State`, `Last Command Result`, and `Last Command At` attributes.
+
+The actual alarm state is still confirmed by the coordinator refresh after command completion.
+
+The integration also fires a `hkc_alarm_command_executed` event. You can use that event to create a toast, persistent notification, or mobile push notification with whatever notification target you prefer.
+
 ## Sample Automation to notify about alarm state changes
 
 ```yaml
-alias: HKC Alarm State Notifications
+alias: HKC Alarm Command Notifications
 description: ""
 trigger:
-  - platform: state
-    entity_id: alarm_control_panel.hkc_alarm_system
+  - platform: event
+    event_type: hkc_alarm_command_executed
 condition: []
 action:
-  - service: notify.notify
+  - service: persistent_notification.create
     data:
-      title: 🚨 HKC Alarm Notification 🚨
+      title: HKC Alarm Status
       message: >
-        Alarm System is now {{ states('alarm_control_panel.hkc_alarm_system') }}
+        Alarm is now {{ trigger.event.data.state }} after {{ trigger.event.data.command }}.
 mode: single
 ```
 
