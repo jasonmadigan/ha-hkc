@@ -47,6 +47,8 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._last_command_at = None
         self._last_command_state = None
         self._last_command_result = None
+        self._last_command_result_code = None
+        self._last_command_acknowledged = None
 
         self._attr_has_entity_name = True
         self._attr_name = None if not view["multi_view"] else view["label"]
@@ -108,6 +110,10 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             attributes["Last Command State"] = self._last_command_state.value
         if self._last_command_result is not None:
             attributes["Last Command Result"] = self._last_command_result
+        if self._last_command_result_code is not None:
+            attributes["Last Command Result Code"] = self._last_command_result_code
+        if self._last_command_acknowledged is not None:
+            attributes["Last Command Acknowledged"] = self._last_command_acknowledged
         if self._last_command_at is not None:
             attributes["Last Command At"] = self._last_command_at.isoformat()
         return attributes
@@ -166,11 +172,20 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             "arm_fullset": AlarmControlPanelState.ARMED_AWAY,
         }.get(command_name)
 
-    def _update_command_feedback(self, command_name: str, user_code: str) -> None:
+    def _update_command_feedback(
+        self,
+        command_name: str,
+        user_code: str,
+        result: str,
+        result_code: int | None,
+        acknowledged: bool,
+    ) -> None:
         self._last_command = command_name
         self._last_command_at = datetime.now(timezone.utc)
         self._last_command_state = self._state_for_command(command_name)
-        self._last_command_result = "success"
+        self._last_command_result = result
+        self._last_command_result_code = result_code
+        self._last_command_acknowledged = acknowledged
 
         if getattr(self, "hass", None) is not None:
             self.hass.bus.async_fire(
@@ -179,6 +194,8 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                     "entity_id": self.entity_id,
                     "command": command_name,
                     "result": self._last_command_result,
+                    "acknowledged": acknowledged,
+                    "result_code": result_code,
                     "state": self._last_command_state.value
                     if self._last_command_state is not None
                     else None,
@@ -213,15 +230,36 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             ) from None
         res = await self.hass.async_add_executor_job(command)
         command_type = command_name.split("_")[0]
-        match res.get("resultCode"):
+        result_code = res.get("resultCode")
+        match result_code:
             case 5:  # alarm command successful
-                self._update_command_feedback(command_name, user_code)
+                self._update_command_feedback(
+                    command_name,
+                    user_code,
+                    "acknowledged",
+                    result_code,
+                    True,
+                )
             case 4:  # alarm is already in current state
+                self._update_command_feedback(
+                    command_name,
+                    user_code,
+                    "already_in_state",
+                    result_code,
+                    True,
+                )
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key=f"already_{command_type}ed"
                 )
             case _:
+                self._update_command_feedback(
+                    command_name,
+                    user_code,
+                    "error",
+                    result_code,
+                    result_code is not None,
+                )
                 if error_list := res.get("errorList"):
                     error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
                     raise ServiceValidationError(

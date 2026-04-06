@@ -155,8 +155,22 @@ async def test_arm_command_uses_default_view_user_without_pin():
     assert alarm_control_panel.alarm_state is None
     assert alarm_control_panel.extra_state_attributes["Last Command"] == "arm_partset_a"
     assert alarm_control_panel.extra_state_attributes["Last Command State"] == "armed_home"
-    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "success"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "acknowledged"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 5
+    assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
     assert mock_hass.bus.async_fire.called
+    mock_hass.bus.async_fire.assert_called_with(
+        "hkc_alarm_command_executed",
+        {
+            "entity_id": alarm_control_panel.entity_id,
+            "command": "arm_partset_a",
+            "result": "acknowledged",
+            "acknowledged": True,
+            "result_code": 5,
+            "state": "armed_home",
+            "user_code": "5678",
+        },
+    )
     mock_alarm_coordinator.async_force_refresh.assert_called()
 
 
@@ -182,8 +196,45 @@ async def test_disarm_command_updates_feedback_without_state_change():
     assert alarm_control_panel.alarm_state is None
     assert alarm_control_panel.extra_state_attributes["Last Command"] == "disarm"
     assert alarm_control_panel.extra_state_attributes["Last Command State"] == "disarmed"
-    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "success"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "acknowledged"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 5
+    assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
     mock_alarm_coordinator.async_force_refresh.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_disarm_already_in_state_still_records_api_ack():
+    hkc_alarm = get_mock_hkc_alarm()
+    hkc_alarm.disarm = lambda user_code=None: {"resultCode": 4}
+
+    alarm_control_panel = HKCAlarmControlPanel(
+        hkc_alarm,
+        build_view(),
+        get_mock_alarm_coordinator(),
+        False,
+    )
+    mock_hass = get_mock_hass()
+    alarm_control_panel.hass = mock_hass
+
+    with pytest.raises(ServiceValidationError):
+        await alarm_control_panel.async_alarm_disarm()
+
+    assert alarm_control_panel.extra_state_attributes["Last Command"] == "disarm"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "already_in_state"
+    assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 4
+    assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
+    mock_hass.bus.async_fire.assert_called_with(
+        "hkc_alarm_command_executed",
+        {
+            "entity_id": alarm_control_panel.entity_id,
+            "command": "disarm",
+            "result": "already_in_state",
+            "acknowledged": True,
+            "result_code": 4,
+            "state": "disarmed",
+            "user_code": "1234",
+        },
+    )
 
 
 @pytest.mark.asyncio

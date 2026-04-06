@@ -44,7 +44,7 @@ The integration now supports two Home Assistant alarm panel workflows:
 
 ## Command feedback
 
-When an arm/disarm command succeeds, the integration immediately exposes command feedback from the API response via `Last Command`, `Last Command State`, `Last Command Result`, and `Last Command At` attributes.
+When an arm/disarm command returns from the API, the integration immediately exposes command feedback metadata via `Last Command`, `Last Command State`, `Last Command Result`, `Last Command Result Code`, `Last Command Acknowledged`, and `Last Command At` attributes.
 
 The actual alarm state is still confirmed by the coordinator refresh after command completion.
 
