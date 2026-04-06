@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -42,6 +43,12 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._primary_user_code = str(view["user_code"])
         self._require_user_pin = require_user_pin
         self._block_numbers = list(view["block_numbers"])
+        self._last_command = None
+        self._last_command_at = None
+        self._last_command_state = None
+        self._last_command_result = None
+        self._last_command_result_code = None
+        self._last_command_acknowledged = None
 
         self._attr_has_entity_name = True
         self._attr_name = None if not view["multi_view"] else view["label"]
@@ -97,6 +104,18 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             ]
         if self._block_numbers:
             attributes["Blocks"] = self._block_numbers
+        if self._last_command is not None:
+            attributes["Last Command"] = self._last_command
+        if self._last_command_state is not None:
+            attributes["Last Command State"] = self._last_command_state.value
+        if self._last_command_result is not None:
+            attributes["Last Command Result"] = self._last_command_result
+        if self._last_command_result_code is not None:
+            attributes["Last Command Result Code"] = self._last_command_result_code
+        if self._last_command_acknowledged is not None:
+            attributes["Last Command Acknowledged"] = self._last_command_acknowledged
+        if self._last_command_at is not None:
+            attributes["Last Command At"] = self._last_command_at.isoformat()
         return attributes
 
     @property
@@ -145,6 +164,31 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
 
         return user_code
 
+    def _state_for_command(self, command_name: str) -> AlarmControlPanelState | None:
+        return {
+            "disarm": AlarmControlPanelState.DISARMED,
+            "arm_partset_a": AlarmControlPanelState.ARMED_HOME,
+            "arm_partset_b": AlarmControlPanelState.ARMED_NIGHT,
+            "arm_fullset": AlarmControlPanelState.ARMED_AWAY,
+        }.get(command_name)
+
+    def _update_command_feedback(
+        self,
+        command_name: str,
+        user_code: str,
+        result: str,
+        result_code: int | None,
+        acknowledged: bool,
+    ) -> None:
+        self._last_command = command_name
+        self._last_command_at = datetime.now(timezone.utc)
+        self._last_command_state = self._state_for_command(command_name)
+        self._last_command_result = result
+        self._last_command_result_code = result_code
+        self._last_command_acknowledged = acknowledged
+
+        self.async_write_ha_state()
+
     async def _send_alarm_command(
         self,
         command_name: str,
@@ -170,27 +214,48 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             ) from None
         res = await self.hass.async_add_executor_job(command)
         command_type = command_name.split("_")[0]
-        match res.get("resultCode"):
-            case 5:  # alarm command successful
-                pass
-            case 4:  # alarm is already in current state
+        result_code = res.get("resultCode")
+        if result_code == 5:  # alarm command successful
+            self._attr_alarm_state = self._state_for_command(command_name)
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "acknowledged",
+                result_code,
+                True,
+            )
+        elif result_code == 4:  # alarm is already in current state
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "already_in_state",
+                result_code,
+                True,
+            )
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=f"already_{command_type}ed"
+            )
+        else:
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "error",
+                result_code,
+                result_code is not None,
+            )
+            if error_list := res.get("errorList"):
+                error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key=f"already_{command_type}ed"
+                    translation_key=f"{command_name}_error",
+                    translation_placeholders={"error_msg": error_msg},
                 )
-            case _:
-                if error_list := res.get("errorList"):
-                    error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key=f"{command_name}_error",
-                        translation_placeholders={"error_msg": error_msg},
-                    )
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="unknown_response",
-                    translation_placeholders={"response": res},
-                )
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_response",
+                translation_placeholders={"response": res},
+            )
 
         # Refresh alarm status on successful command
         if refresh_delay:
