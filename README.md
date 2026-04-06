@@ -44,27 +44,27 @@ The integration now supports two Home Assistant alarm panel workflows:
 
 ## Command feedback
 
-When an arm/disarm command returns from the API, the integration immediately exposes command feedback metadata via `Last Command`, `Last Command State`, `Last Command Result`, `Last Command Result Code`, `Last Command Acknowledged`, and `Last Command At` attributes.
+When an arm/disarm command returns a success response from the API, the integration immediately updates the alarm entity state so existing state-based automations react without waiting for the coordinator refresh.
 
-The actual alarm state is still confirmed by the coordinator refresh after command completion.
+The integration also exposes command feedback metadata via `Last Command`, `Last Command State`, `Last Command Result`, `Last Command Result Code`, `Last Command Acknowledged`, and `Last Command At` attributes.
 
-The integration also fires a `hkc_alarm_command_executed` event. You can use that event to create a toast, persistent notification, or mobile push notification with whatever notification target you prefer.
+The alarm state is still confirmed by the coordinator refresh after command completion.
 
 ## Sample Automation to notify about alarm state changes
 
 ```yaml
-alias: HKC Alarm Command Notifications
+alias: HKC Alarm State Notifications
 description: ""
 trigger:
-  - platform: event
-    event_type: hkc_alarm_command_executed
+  - platform: state
+    entity_id: alarm_control_panel.hkc_alarm_system
 condition: []
 action:
-  - service: persistent_notification.create
+  - service: notify.notify
     data:
       title: HKC Alarm Status
       message: >
-        Alarm is now {{ trigger.event.data.state }} after {{ trigger.event.data.command }}.
+        Alarm is now {{ states('alarm_control_panel.hkc_alarm_system') }}.
 mode: single
 ```
 

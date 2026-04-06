@@ -12,7 +12,7 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, EVENT_ALARM_COMMAND_EXECUTED
+from .const import DOMAIN
 from .pyhkc_compat import build_block_alarm_command
 
 
@@ -187,22 +187,6 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._last_command_result_code = result_code
         self._last_command_acknowledged = acknowledged
 
-        if getattr(self, "hass", None) is not None:
-            self.hass.bus.async_fire(
-                EVENT_ALARM_COMMAND_EXECUTED,
-                {
-                    "entity_id": self.entity_id,
-                    "command": command_name,
-                    "result": self._last_command_result,
-                    "acknowledged": acknowledged,
-                    "result_code": result_code,
-                    "state": self._last_command_state.value
-                    if self._last_command_state is not None
-                    else None,
-                    "user_code": user_code,
-                },
-            )
-
         self.async_write_ha_state()
 
     async def _send_alarm_command(
@@ -231,47 +215,47 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         res = await self.hass.async_add_executor_job(command)
         command_type = command_name.split("_")[0]
         result_code = res.get("resultCode")
-        match result_code:
-            case 5:  # alarm command successful
-                self._update_command_feedback(
-                    command_name,
-                    user_code,
-                    "acknowledged",
-                    result_code,
-                    True,
-                )
-            case 4:  # alarm is already in current state
-                self._update_command_feedback(
-                    command_name,
-                    user_code,
-                    "already_in_state",
-                    result_code,
-                    True,
-                )
+        if result_code == 5:  # alarm command successful
+            self._attr_alarm_state = self._state_for_command(command_name)
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "acknowledged",
+                result_code,
+                True,
+            )
+        elif result_code == 4:  # alarm is already in current state
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "already_in_state",
+                result_code,
+                True,
+            )
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=f"already_{command_type}ed"
+            )
+        else:
+            self._update_command_feedback(
+                command_name,
+                user_code,
+                "error",
+                result_code,
+                result_code is not None,
+            )
+            if error_list := res.get("errorList"):
+                error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key=f"already_{command_type}ed"
+                    translation_key=f"{command_name}_error",
+                    translation_placeholders={"error_msg": error_msg},
                 )
-            case _:
-                self._update_command_feedback(
-                    command_name,
-                    user_code,
-                    "error",
-                    result_code,
-                    result_code is not None,
-                )
-                if error_list := res.get("errorList"):
-                    error_msg = ", ".join(map(lambda x: x.get("description"), error_list))
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key=f"{command_name}_error",
-                        translation_placeholders={"error_msg": error_msg},
-                    )
-                raise HomeAssistantError(
-                    translation_domain=DOMAIN,
-                    translation_key="unknown_response",
-                    translation_placeholders={"response": res},
-                )
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_response",
+                translation_placeholders={"response": res},
+            )
 
         # Refresh alarm status on successful command
         if refresh_delay:
