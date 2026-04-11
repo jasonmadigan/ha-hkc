@@ -130,32 +130,44 @@ def get_home_assistant_entity_map(
 ) -> dict | None:
     """Return the upstream Home Assistant entity map when supported."""
     if hasattr(hkc_alarm, "get_home_assistant_entity_map"):
-        return hkc_alarm.get_home_assistant_entity_map(
-            user_codes=[int(code) for code in user_codes]
-        )
+        try:
+            return hkc_alarm.get_home_assistant_entity_map(
+                user_codes=[int(code) for code in user_codes]
+            )
+        except Exception:
+            _LOGGER.warning("failed to fetch entity map", exc_info=True)
     return None
 
 
 def get_device_details(hkc_alarm: HKCAlarm) -> dict:
     """Return device details when supported."""
     if hasattr(hkc_alarm, "get_device_details"):
-        return hkc_alarm.get_device_details() or {}
+        try:
+            return hkc_alarm.get_device_details() or {}
+        except Exception:
+            _LOGGER.warning("failed to fetch device details", exc_info=True)
     return {}
 
 
 def get_outputs(hkc_alarm: HKCAlarm) -> list[dict]:
     """Return outputs when supported."""
     if hasattr(hkc_alarm, "get_outputs"):
-        return hkc_alarm.get_outputs() or []
+        try:
+            return hkc_alarm.get_outputs() or []
+        except Exception:
+            _LOGGER.warning("failed to fetch outputs", exc_info=True)
     return []
 
 
 def get_temporary_user(hkc_alarm: HKCAlarm, user_code: str | None = None) -> dict:
     """Return temporary user details when supported."""
     if hasattr(hkc_alarm, "get_temporary_user"):
-        if user_code is not None and _supports_keyword(hkc_alarm.get_temporary_user, "user_code"):
-            return hkc_alarm.get_temporary_user(user_code=user_code) or {}
-        return hkc_alarm.get_temporary_user() or {}
+        try:
+            if user_code is not None and _supports_keyword(hkc_alarm.get_temporary_user, "user_code"):
+                return hkc_alarm.get_temporary_user(user_code=user_code) or {}
+            return hkc_alarm.get_temporary_user() or {}
+        except Exception:
+            _LOGGER.warning("failed to fetch temporary user", exc_info=True)
     return {}
 
 
