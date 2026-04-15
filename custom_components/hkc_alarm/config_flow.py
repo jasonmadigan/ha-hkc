@@ -5,11 +5,17 @@ import logging
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     CONF_ADDITIONAL_USER_CODES,
     CONF_REQUIRE_USER_PIN,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_REQUIRE_USER_PIN,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
@@ -17,12 +23,47 @@ from .const import (
 from .helpers import (
     InvalidUserCodeError,
     normalize_configured_user_codes,
-    parse_additional_user_codes,
-    serialize_user_codes,
 )
 from .pyhkc_compat import build_hkc_alarm
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_CONFIGURED_ADDITIONAL_USER_CODES = "configured_additional_user_codes"
+CONF_REPLACE_ADDITIONAL_USER_CODES = "replace_additional_user_codes"
+CONF_CLEAR_ADDITIONAL_USER_CODES = "clear_additional_user_codes"
+
+
+def _sensitive_text_selector(
+    *,
+    multiple: bool = False,
+) -> TextSelector:
+    """Return a selector for sensitive HKC values."""
+    return TextSelector(
+        TextSelectorConfig(
+            type=TextSelectorType.PASSWORD,
+            multiple=multiple,
+        )
+    )
+
+
+def _read_only_text_selector() -> TextSelector:
+    """Return a read-only selector for non-sensitive summaries."""
+    return TextSelector(
+        TextSelectorConfig(
+            type=TextSelectorType.TEXT,
+            read_only=True,
+        )
+    )
+
+
+def _configured_codes_summary(user_codes: list[str]) -> str:
+    """Return a user-friendly summary of configured additional codes."""
+    count = len(user_codes)
+    if count == 0:
+        return "None configured"
+    if count == 1:
+        return "1 additional PIN configured"
+    return f"{count} additional PINs configured"
 
 
 def _get_user_schema(defaults: dict | None = None) -> vol.Schema:
@@ -30,15 +71,15 @@ def _get_user_schema(defaults: dict | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema(
         {
-            vol.Required("alarm_code", default=defaults.get("alarm_code", "")): str,
+            vol.Required("alarm_code"): _sensitive_text_selector(),
+            vol.Required("panel_password"): _sensitive_text_selector(),
             vol.Required(
-                "panel_password", default=defaults.get("panel_password", "")
-            ): str,
-            vol.Required("panel_id", default=defaults.get("panel_id", "")): str,
+                "panel_id", default=defaults.get("panel_id", "")
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEL)),
             vol.Optional(
                 CONF_ADDITIONAL_USER_CODES,
-                default=defaults.get(CONF_ADDITIONAL_USER_CODES, ""),
-            ): str,
+                default=defaults.get(CONF_ADDITIONAL_USER_CODES, []),
+            ): _sensitive_text_selector(multiple=True),
             vol.Optional(
                 CONF_REQUIRE_USER_PIN,
                 default=defaults.get(CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN),
@@ -91,6 +132,7 @@ class HKCAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     panel_password,
                     alarm_code,
                     user_codes[1:],
+                    DEFAULT_REQUEST_TIMEOUT,
                 )
 
                 is_authenticated = await self.hass.async_add_executor_job(api.check_login)
@@ -122,10 +164,12 @@ class HKCAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
 
             defaults = {
-                **user_input,
                 "panel_id": panel_id,
-                "panel_password": panel_password,
-                "alarm_code": alarm_code,
+                CONF_REQUIRE_USER_PIN: bool(
+                    user_input.get(CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN)
+                ),
+                CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
+                CONF_ADDITIONAL_USER_CODES: [],
             }
 
         return self.async_show_form(
@@ -146,54 +190,95 @@ class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Handle the options step."""
         errors = {}
+        current_additional_user_codes = list(
+            self.config_entry.options.get(CONF_ADDITIONAL_USER_CODES, [])
+        )
         defaults = user_input or {
             CONF_UPDATE_INTERVAL: self.config_entry.options.get(
                 CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
             ),
-            CONF_ADDITIONAL_USER_CODES: serialize_user_codes(
-                parse_additional_user_codes(
-                    self.config_entry.options.get(CONF_ADDITIONAL_USER_CODES, [])
-                )
+            CONF_CONFIGURED_ADDITIONAL_USER_CODES: _configured_codes_summary(
+                current_additional_user_codes
             ),
+            CONF_REPLACE_ADDITIONAL_USER_CODES: [],
+            CONF_CLEAR_ADDITIONAL_USER_CODES: False,
             CONF_REQUIRE_USER_PIN: self.config_entry.options.get(
                 CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN
             ),
         }
 
         if user_input is not None:
-            try:
-                configured_codes = normalize_configured_user_codes(
-                    self.config_entry.data["user_code"],
-                    user_input.get(CONF_ADDITIONAL_USER_CODES),
-                )
-            except InvalidUserCodeError:
-                errors["base"] = "invalid_user_codes"
+            replacement_codes = user_input.get(CONF_REPLACE_ADDITIONAL_USER_CODES) or []
+            clear_codes = bool(user_input.get(CONF_CLEAR_ADDITIONAL_USER_CODES, False))
+            if replacement_codes and clear_codes:
+                errors["base"] = "cannot_replace_and_clear_user_codes"
             else:
-                return self.async_create_entry(
-                    data={
-                        CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
-                        CONF_ADDITIONAL_USER_CODES: configured_codes[1:],
-                        CONF_REQUIRE_USER_PIN: bool(
-                            user_input.get(
-                                CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN
-                            )
-                        ),
-                    }
-                )
+                try:
+                    if clear_codes:
+                        configured_codes = [self.config_entry.data["user_code"]]
+                    elif replacement_codes:
+                        configured_codes = normalize_configured_user_codes(
+                            self.config_entry.data["user_code"],
+                            replacement_codes,
+                        )
+                    else:
+                        configured_codes = normalize_configured_user_codes(
+                            self.config_entry.data["user_code"],
+                            current_additional_user_codes,
+                        )
+                except InvalidUserCodeError:
+                    errors["base"] = "invalid_user_codes"
+                else:
+                    return self.async_create_entry(
+                        data={
+                            CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
+                            CONF_ADDITIONAL_USER_CODES: configured_codes[1:],
+                            CONF_REQUIRE_USER_PIN: bool(
+                                user_input.get(
+                                    CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN
+                                )
+                            ),
+                        }
+                    )
+
+            defaults = {
+                CONF_UPDATE_INTERVAL: user_input[CONF_UPDATE_INTERVAL],
+                CONF_CONFIGURED_ADDITIONAL_USER_CODES: _configured_codes_summary(
+                    current_additional_user_codes
+                ),
+                CONF_REPLACE_ADDITIONAL_USER_CODES: [],
+                CONF_CLEAR_ADDITIONAL_USER_CODES: clear_codes,
+                CONF_REQUIRE_USER_PIN: bool(
+                    user_input.get(CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN)
+                ),
+            }
 
         options_schema = vol.Schema(
             {
-                vol.Optional(CONF_ADDITIONAL_USER_CODES, default=""): str,
+                vol.Optional(
+                    CONF_CONFIGURED_ADDITIONAL_USER_CODES,
+                    default=defaults[CONF_CONFIGURED_ADDITIONAL_USER_CODES],
+                ): _read_only_text_selector(),
+                vol.Optional(
+                    CONF_REPLACE_ADDITIONAL_USER_CODES,
+                    default=defaults[CONF_REPLACE_ADDITIONAL_USER_CODES],
+                ): _sensitive_text_selector(multiple=True),
+                vol.Optional(
+                    CONF_CLEAR_ADDITIONAL_USER_CODES,
+                    default=defaults[CONF_CLEAR_ADDITIONAL_USER_CODES],
+                ): bool,
                 vol.Optional(
                     CONF_REQUIRE_USER_PIN,
-                    default=DEFAULT_REQUIRE_USER_PIN,
+                    default=defaults[CONF_REQUIRE_USER_PIN],
                 ): bool,
-                vol.Optional(CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL): int,
+                vol.Optional(
+                    CONF_UPDATE_INTERVAL, default=defaults[CONF_UPDATE_INTERVAL]
+                ): int,
             }
         )
 
         return self.async_show_form(
             step_id="init",
-            data_schema=self.add_suggested_values_to_schema(options_schema, defaults),
+            data_schema=options_schema,
             errors=errors,
         )

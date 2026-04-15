@@ -13,6 +13,7 @@ from .const import (
     CONF_ADDITIONAL_USER_CODES,
     CONF_REQUIRE_USER_PIN,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_REQUIRE_USER_PIN,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
@@ -26,6 +27,7 @@ from .pyhkc_compat import (
     get_home_assistant_entity_map,
     get_inputs_for_user,
     get_outputs,
+    get_remote_keypad,
     get_status_for_user,
     get_temporary_user,
     get_user_access_summary,
@@ -76,7 +78,7 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
                 self._configured_user_codes,
                 self.status_by_user,
             )
-            self.panel_data = self._hkc_alarm.get_panel()
+            self.panel_data = get_remote_keypad(self._hkc_alarm)
 
         def parse_panel_time():
             panel_time_str = self.panel_data.get("display", "")
@@ -205,6 +207,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         panel_password,
         user_code,
         configured_user_codes[1:],
+        DEFAULT_REQUEST_TIMEOUT,
     )
 
     update_interval = entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
@@ -261,6 +264,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await sensor_coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "panel_id": panel_id,
         "hkc_alarm": hkc_alarm,
         "update_interval": update_interval,
         "require_user_pin": require_user_pin,
@@ -277,7 +281,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # clean up orphaned devices from pre-fix multi-view code
     expected_identifiers = {
-        (DOMAIN, v["key"] if v["multi_view"] else hkc_alarm.panel_id)
+        (
+            DOMAIN,
+            f"{hkc_alarm.panel_id}_{v['key']}" if v["multi_view"] else hkc_alarm.panel_id,
+        )
         for v in views
     }
     device_registry = dr.async_get(hass)

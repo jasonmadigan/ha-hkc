@@ -81,6 +81,10 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             entry_data = self.hass.data[DOMAIN][self.coordinator.config_entry.entry_id]
         metadata = entry_data.get("device_metadata", {})
         temporary_user = entry_data.get("temporary_user_by_code", {}).get(self._primary_user_code, {})
+        current_status = self._alarm_coordinator.status_by_user.get(
+            self._primary_user_code,
+            self._alarm_coordinator.status or {},
+        )
         attributes = {
             "Green LED": self._alarm_coordinator.panel_data["greenLed"],
             "Red LED": self._alarm_coordinator.panel_data["redLed"],
@@ -102,6 +106,42 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             attributes["Temporary User Subscription Days Left"] = temporary_user[
                 "subscriptionDaysLeft"
             ]
+        if current_status.get("additionalInfo"):
+            attributes["Additional Info"] = current_status["additionalInfo"]
+        if "engineerActive" in current_status:
+            attributes["Engineer Active"] = current_status["engineerActive"]
+        if "alarmEventId" in current_status:
+            attributes["Alarm Event ID"] = current_status["alarmEventId"]
+        if current_status.get("userOptions"):
+            attributes["User Options"] = current_status["userOptions"]
+        if current_status.get("alarmEvents") is not None:
+            attributes["Alarm Events"] = current_status["alarmEvents"]
+        descriptions = current_status.get("descriptions", {})
+        if descriptions.get("partseta"):
+            attributes["Partset A Label"] = descriptions["partseta"]
+        if descriptions.get("partsetb"):
+            attributes["Partset B Label"] = descriptions["partsetb"]
+        block_status = []
+        for block_number, block in enumerate(current_status.get("blocks", []), start=1):
+            if self._block_numbers and block_number not in self._block_numbers:
+                continue
+            if not block.get("isEnabled"):
+                continue
+            block_status.append(
+                {
+                    "block": block_number,
+                    "description": descriptions.get(
+                        f"block{block_number}", f"Block {block_number}"
+                    ),
+                    "armState": block.get("armState"),
+                    "inAlarm": block.get("inAlarm"),
+                    "inFault": block.get("inFault"),
+                    "inhibit": block.get("inhibit"),
+                    "userAllowed": block.get("userAllowed"),
+                }
+            )
+        if block_status:
+            attributes["Block Status"] = block_status
         if self._block_numbers:
             attributes["Blocks"] = self._block_numbers
         if self._last_command is not None:

@@ -10,6 +10,8 @@ from .mock_common import get_mock_alarm_coordinator, get_mock_hass, get_mock_hkc
 
 
 mock_panel_status_disarmed = {
+    "additionalInfo": "Today at 06:48 by U02 Example User",
+    "alarmEventId": 42,
     "blocks": [
         {
             "armState": 0,
@@ -20,6 +22,13 @@ mock_panel_status_disarmed = {
             "inhibit": False,
         }
     ],
+    "descriptions": {
+        "block1": "Main House",
+        "partseta": "Homeset",
+        "partsetb": "Night Set",
+    },
+    "engineerActive": False,
+    "userOptions": {"partsetA": True, "partsetB": True},
 }
 
 
@@ -210,6 +219,39 @@ async def test_disarm_already_in_state_still_records_api_ack():
     assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "already_in_state"
     assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 4
     assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
+
+
+@pytest.mark.asyncio
+async def test_alarm_attributes_expose_app_v3_status_metadata():
+    alarm_control_panel = HKCAlarmControlPanel(
+        get_mock_hkc_alarm(),
+        build_view(user_code="1234", block_numbers=[1]),
+        mock_alarm_coordinator := get_mock_alarm_coordinator(),
+        False,
+    )
+    alarm_control_panel.hass = get_mock_hass()
+    mock_alarm_coordinator.status = mock_panel_status_disarmed
+    mock_alarm_coordinator.status_by_user = {"1234": mock_panel_status_disarmed}
+
+    attributes = alarm_control_panel.extra_state_attributes
+
+    assert attributes["Additional Info"] == "Today at 06:48 by U02 Example User"
+    assert attributes["Alarm Event ID"] == 42
+    assert attributes["Engineer Active"] is False
+    assert attributes["User Options"] == {"partsetA": True, "partsetB": True}
+    assert attributes["Partset A Label"] == "Homeset"
+    assert attributes["Partset B Label"] == "Night Set"
+    assert attributes["Block Status"] == [
+        {
+            "block": 1,
+            "description": "Main House",
+            "armState": 0,
+            "inAlarm": False,
+            "inFault": False,
+            "inhibit": False,
+            "userAllowed": True,
+        }
+    ]
 
 
 @pytest.mark.asyncio

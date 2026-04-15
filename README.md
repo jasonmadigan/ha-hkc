@@ -15,9 +15,9 @@ You will need [HACS](https://hacs.xyz) installed in your Home Assistant server. 
 * **Panel ID**: Your HKC Alarm Panel ID (same as panel ID in HKC mobile app)
 * **Panel Password**: Your HKC Alarm Panel Password (same as panel password from HKC mobile app)
 * **Alarm Code**: Your HKC Alarm Code/PIN
-* **Additional User PINs**: (Optional) Extra HKC user PINs separated by commas to enable multi-user arm/disarm from Home Assistant
+* **Additional User PINs**: (Optional) Extra HKC user PINs entered as separate masked values to enable multi-user arm/disarm from Home Assistant
 * **Require entering a user PIN to arm/disarm**: (Optional) Forces the Home Assistant alarm panel card keypad to be used for control
-* **Update Interval (seconds)**: (Optional) Custom update interval for fetching data from HKC Alarm. Default is 60 seconds. Recommend keeping this at 60s, as this is similar to the Mobile App's polling interval, and we want to respect HKC's API.
+* **Update Interval (seconds)**: (Optional) Custom update interval for fetching data from HKC Alarm. Default is 60 seconds. Recommend keeping this at 60s or above so the integration stays conservative with HKC's private API.
 
 [![Open your Home Assistant instance and add this integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hkc_alarm)
 
@@ -41,6 +41,7 @@ The integration now supports two Home Assistant alarm panel workflows:
 
 * If you configure multiple HKC user PINs and your panel users have access to different blocks, the integration will create separate alarm views for those homes/areas and will only expose the sensors returned for each configured user.
 * If you enable **Require entering a user PIN to arm/disarm**, the standard Home Assistant [alarm panel card](https://www.home-assistant.io/dashboards/alarm-panel/) keypad is used before control actions are sent.
+* The options flow no longer shows stored additional PINs back to the user. It shows a read-only count instead, and you can explicitly replace or clear the stored list.
 
 ## Command feedback
 
@@ -49,6 +50,15 @@ When an arm/disarm command returns a success response from the API, the integrat
 The integration also exposes command feedback metadata via `Last Command`, `Last Command State`, `Last Command Result`, `Last Command Result Code`, `Last Command Acknowledged`, and `Last Command At` attributes.
 
 The alarm state is still confirmed by the coordinator refresh after command completion.
+
+On newer AppV3-backed panels, the alarm entity also exposes the confirmed upstream status metadata that is useful in Home Assistant without creating extra noisy entities:
+
+* `Additional Info`
+* `Alarm Event ID`
+* `Engineer Active`
+* `User Options`
+* `Partset A Label` / `Partset B Label`
+* `Block Status`
 
 ## Sample Automation to notify about alarm state changes
 
@@ -85,3 +95,9 @@ This will produce detailed debug logs which can help in diagnosing the problem.
 
 - [pyhkc](https://github.com/jasonmadigan/pyhkc)
 - [HKC Alarm PyPi Package](https://pypi.org/project/pyhkc/)
+
+## Dependency Pin
+
+The AppV3 `pyhkc` changes are not released yet, so this integration currently pins the upstream PR head commit directly:
+
+- [`jasonmadigan/pyhkc` PR #12](https://github.com/jasonmadigan/pyhkc/pull/12)

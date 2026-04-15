@@ -10,13 +10,17 @@
           "panel_id": "Panel ID",
           "require_user_pin": "Require entering a user PIN to arm/disarm",
           "update_interval": "Update Interval (seconds)"
+        },
+        "data_description": {
+          "additional_user_codes": "Add extra HKC PINs one at a time. They are only used for multi-user access and block-aware views."
         }
       }
     },
     "error": {
       "cannot_connect": "Unable to connect to the HKC Alarm.",
+      "cannot_replace_and_clear_user_codes": "Choose either replacement PINs or clear the stored additional PINs, not both.",
       "invalid_auth": "Invalid authentication details.",
-      "invalid_user_codes": "User PINs must be numeric values separated by commas.",
+      "invalid_user_codes": "User PINs must contain digits only.",
       "unknown": "An unknown error occurred."
     },
     "abort": {
@@ -28,9 +32,16 @@
       "init": {
         "title": "Options",
         "data": {
-          "additional_user_codes": "Additional User PINs",
+          "configured_additional_user_codes": "Configured Additional User PINs",
+          "replace_additional_user_codes": "Replace Additional User PINs",
+          "clear_additional_user_codes": "Clear Additional User PINs",
           "require_user_pin": "Require entering a user PIN to arm/disarm",
           "update_interval": "Update Interval (seconds)"
+        },
+        "data_description": {
+          "configured_additional_user_codes": "Read-only summary of the extra HKC PINs currently stored for this integration.",
+          "replace_additional_user_codes": "Leave empty to keep the current extra PINs. Enter one or more PINs here to replace the stored list.",
+          "clear_additional_user_codes": "Remove all stored extra HKC PINs. Do not enable this when also entering replacement PINs."
         }
       }
     }

@@ -26,30 +26,30 @@ def build_hkc_alarm(
     panel_password: str,
     user_code: str,
     additional_user_codes: list[str] | None = None,
+    request_timeout: int | None = None,
 ) -> HKCAlarm:
     """Create an HKCAlarm instance across pyhkc versions."""
     additional_user_codes = additional_user_codes or []
+    kwargs: dict[str, Any] = {}
 
     if _supports_keyword(HKCAlarm, "user_codes"):
-        try:
-            return HKCAlarm(
-                panel_id,
-                panel_password,
-                user_code,
-                user_codes=additional_user_codes,
-            )
-        except Exception:
-            if additional_user_codes:
-                _LOGGER.warning(
-                    "pyhkc failed to initialize with additional user codes for panel %s; "
-                    "falling back to legacy single-user mode",
-                    panel_id,
-                    exc_info=True,
-                )
-            else:
-                raise
+        kwargs["user_codes"] = additional_user_codes
+    if request_timeout is not None and _supports_keyword(HKCAlarm, "request_timeout"):
+        kwargs["request_timeout"] = request_timeout
 
-    return HKCAlarm(panel_id, panel_password, user_code)
+    try:
+        return HKCAlarm(panel_id, panel_password, user_code, **kwargs)
+    except Exception:
+        if "user_codes" in kwargs and additional_user_codes:
+            _LOGGER.warning(
+                "pyhkc failed to initialize with additional user codes for panel %s; "
+                "falling back to legacy single-user mode",
+                panel_id,
+                exc_info=True,
+            )
+            kwargs.pop("user_codes", None)
+            return HKCAlarm(panel_id, panel_password, user_code, **kwargs)
+        raise
 
 
 def build_alarm_command(
@@ -146,6 +146,23 @@ def get_device_details(hkc_alarm: HKCAlarm) -> dict:
             return hkc_alarm.get_device_details() or {}
         except Exception:
             _LOGGER.warning("failed to fetch device details", exc_info=True)
+    return {}
+
+
+def get_remote_keypad(hkc_alarm: HKCAlarm) -> dict:
+    """Return the current keypad payload when supported."""
+    if hasattr(hkc_alarm, "get_remote_keypad"):
+        try:
+            return hkc_alarm.get_remote_keypad() or {}
+        except Exception:
+            _LOGGER.warning("failed to fetch remote keypad", exc_info=True)
+
+    if hasattr(hkc_alarm, "get_panel"):
+        try:
+            return hkc_alarm.get_panel() or {}
+        except Exception:
+            _LOGGER.warning("failed to fetch panel payload", exc_info=True)
+
     return {}
 
 
