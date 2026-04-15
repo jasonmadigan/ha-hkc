@@ -12,7 +12,7 @@
           "update_interval": "Update Interval (seconds)"
         },
         "data_description": {
-          "additional_user_codes": "Add extra HKC PINs one at a time. They are only used for multi-user access and block-aware views."
+          "additional_user_codes": "Enter extra HKC PINs as a masked comma- or newline-separated list. They are only used for multi-user access and block-aware views."
         }
       }
     },
@@ -40,7 +40,7 @@
         },
         "data_description": {
           "configured_additional_user_codes": "Read-only summary of the extra HKC PINs currently stored for this integration.",
-          "replace_additional_user_codes": "Leave empty to keep the current extra PINs. Enter one or more PINs here to replace the stored list.",
+          "replace_additional_user_codes": "Leave empty to keep the current extra PINs. Enter a masked comma- or newline-separated list here to replace the stored list.",
           "clear_additional_user_codes": "Remove all stored extra HKC PINs. Do not enable this when also entering replacement PINs."
         }
       }

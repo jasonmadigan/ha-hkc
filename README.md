@@ -15,7 +15,7 @@ You will need [HACS](https://hacs.xyz) installed in your Home Assistant server. 
 * **Panel ID**: Your HKC Alarm Panel ID (same as panel ID in HKC mobile app)
 * **Panel Password**: Your HKC Alarm Panel Password (same as panel password from HKC mobile app)
 * **Alarm Code**: Your HKC Alarm Code/PIN
-* **Additional User PINs**: (Optional) Extra HKC user PINs entered as separate masked values to enable multi-user arm/disarm from Home Assistant
+* **Additional User PINs**: (Optional) Extra HKC user PINs entered as a masked comma- or newline-separated list to enable multi-user arm/disarm from Home Assistant
 * **Require entering a user PIN to arm/disarm**: (Optional) Forces the Home Assistant alarm panel card keypad to be used for control
 * **Update Interval (seconds)**: (Optional) Custom update interval for fetching data from HKC Alarm. Default is 60 seconds. Recommend keeping this at 60s or above so the integration stays conservative with HKC's private API.
 

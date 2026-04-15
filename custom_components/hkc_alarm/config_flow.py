@@ -36,12 +36,14 @@ CONF_CLEAR_ADDITIONAL_USER_CODES = "clear_additional_user_codes"
 def _sensitive_text_selector(
     *,
     multiple: bool = False,
+    multiline: bool = False,
 ) -> TextSelector:
     """Return a selector for sensitive HKC values."""
     return TextSelector(
         TextSelectorConfig(
             type=TextSelectorType.PASSWORD,
             multiple=multiple,
+            multiline=multiline,
         )
     )
 
@@ -78,8 +80,8 @@ def _get_user_schema(defaults: dict | None = None) -> vol.Schema:
             ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEL)),
             vol.Optional(
                 CONF_ADDITIONAL_USER_CODES,
-                default=defaults.get(CONF_ADDITIONAL_USER_CODES, []),
-            ): _sensitive_text_selector(multiple=True),
+                default=defaults.get(CONF_ADDITIONAL_USER_CODES, ""),
+            ): _sensitive_text_selector(multiline=True),
             vol.Optional(
                 CONF_REQUIRE_USER_PIN,
                 default=defaults.get(CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN),
@@ -200,7 +202,7 @@ class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
             CONF_CONFIGURED_ADDITIONAL_USER_CODES: _configured_codes_summary(
                 current_additional_user_codes
             ),
-            CONF_REPLACE_ADDITIONAL_USER_CODES: [],
+            CONF_REPLACE_ADDITIONAL_USER_CODES: "",
             CONF_CLEAR_ADDITIONAL_USER_CODES: False,
             CONF_REQUIRE_USER_PIN: self.config_entry.options.get(
                 CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN
@@ -208,7 +210,7 @@ class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
         }
 
         if user_input is not None:
-            replacement_codes = user_input.get(CONF_REPLACE_ADDITIONAL_USER_CODES) or []
+            replacement_codes = user_input.get(CONF_REPLACE_ADDITIONAL_USER_CODES) or ""
             clear_codes = bool(user_input.get(CONF_CLEAR_ADDITIONAL_USER_CODES, False))
             if replacement_codes and clear_codes:
                 errors["base"] = "cannot_replace_and_clear_user_codes"
@@ -246,7 +248,7 @@ class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
                 CONF_CONFIGURED_ADDITIONAL_USER_CODES: _configured_codes_summary(
                     current_additional_user_codes
                 ),
-                CONF_REPLACE_ADDITIONAL_USER_CODES: [],
+                CONF_REPLACE_ADDITIONAL_USER_CODES: "",
                 CONF_CLEAR_ADDITIONAL_USER_CODES: clear_codes,
                 CONF_REQUIRE_USER_PIN: bool(
                     user_input.get(CONF_REQUIRE_USER_PIN, DEFAULT_REQUIRE_USER_PIN)
@@ -262,7 +264,7 @@ class HKCAlarmOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_REPLACE_ADDITIONAL_USER_CODES,
                     default=defaults[CONF_REPLACE_ADDITIONAL_USER_CODES],
-                ): _sensitive_text_selector(multiple=True),
+                ): _sensitive_text_selector(multiline=True),
                 vol.Optional(
                     CONF_CLEAR_ADDITIONAL_USER_CODES,
                     default=defaults[CONF_CLEAR_ADDITIONAL_USER_CODES],
