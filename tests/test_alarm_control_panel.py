@@ -1,12 +1,26 @@
+import asyncio
+import threading
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.components.alarm_control_panel import AlarmControlPanelState, CodeFormat
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
+from custom_components.hkc_alarm import HKCAlarmCoordinator
 from custom_components.hkc_alarm.alarm_control_panel import HKCAlarmControlPanel
 from custom_components.hkc_alarm.const import DOMAIN
-from .mock_common import get_mock_alarm_coordinator, get_mock_hass, get_mock_hkc_alarm
+from .mock_common import (
+    MockHKCAlarm,
+    get_mock_alarm_coordinator,
+    get_mock_hass,
+    get_mock_hkc_alarm,
+)
 
 
 mock_panel_status_disarmed = {
@@ -140,16 +154,13 @@ async def test_arm_command_uses_default_view_user_without_pin():
     alarm_control_panel = HKCAlarmControlPanel(
         hkc_alarm,
         build_view(user_code="5678", label="Guest Suite", multi_view=True, block_numbers=[2]),
-        mock_alarm_coordinator := get_mock_alarm_coordinator(),
+        get_mock_alarm_coordinator(),
         False,
     )
     mock_hass = get_mock_hass()
     alarm_control_panel.hass = mock_hass
 
-    with patch(
-        "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
-        new=AsyncMock(),
-    ), patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
         await alarm_control_panel.async_alarm_arm_home()
 
     assert hkc_alarm.command_calls[-1] == ("arm_partset_a", "5678", 1)
@@ -159,7 +170,6 @@ async def test_arm_command_uses_default_view_user_without_pin():
     assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "acknowledged"
     assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 5
     assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
-    mock_alarm_coordinator.async_force_refresh.assert_called()
 
 
 @pytest.mark.asyncio
@@ -168,16 +178,13 @@ async def test_disarm_command_updates_feedback_without_state_change():
     alarm_control_panel = HKCAlarmControlPanel(
         hkc_alarm,
         build_view(),
-        mock_alarm_coordinator := get_mock_alarm_coordinator(),
+        get_mock_alarm_coordinator(),
         False,
     )
     mock_hass = get_mock_hass()
     alarm_control_panel.hass = mock_hass
 
-    with patch(
-        "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
-        new=AsyncMock(),
-    ), patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
         await alarm_control_panel.async_alarm_disarm()
 
     assert hkc_alarm.command_calls[-1] == ("disarm", "1234")
@@ -187,7 +194,6 @@ async def test_disarm_command_updates_feedback_without_state_change():
     assert alarm_control_panel.extra_state_attributes["Last Command Result"] == "acknowledged"
     assert alarm_control_panel.extra_state_attributes["Last Command Result Code"] == 5
     assert alarm_control_panel.extra_state_attributes["Last Command Acknowledged"] is True
-    mock_alarm_coordinator.async_force_refresh.assert_called()
 
 
 @pytest.mark.asyncio
@@ -241,3 +247,99 @@ async def test_missing_user_pin_is_rejected_when_required():
 
     with pytest.raises(ServiceValidationError):
         await alarm_control_panel.async_alarm_disarm()
+
+
+def build_panel_with_hass(hass, coordinator):
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    coordinator.config_entry = entry
+    panel = HKCAlarmControlPanel(get_mock_hkc_alarm(), build_view(), coordinator, False)
+    panel.hass = hass
+    return panel
+
+
+class HungPollAlarm(MockHKCAlarm):
+    """Status requests block until released, like a connection dropped mid-request."""
+
+    def __init__(self):
+        super().__init__()
+        self.release = threading.Event()
+
+    def get_system_status(self, user_code=None):
+        self.release.wait()
+        return mock_panel_status_disarmed
+
+    def get_panel(self):
+        return {"display": "Mon 12 May 20:55"}
+
+
+@pytest.mark.asyncio
+async def test_command_completes_while_poll_is_hung(hass):
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
+    hkc_alarm = HungPollAlarm()
+    coordinator = HKCAlarmCoordinator(hass, entry, hkc_alarm, ["1234"], 60)
+    poll = hass.async_create_task(coordinator.async_refresh())
+    panel = HKCAlarmControlPanel(hkc_alarm, build_view(), coordinator, False)
+    panel.hass = hass
+
+    try:
+        with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+            async with asyncio.timeout(1):
+                await panel.async_alarm_disarm()
+    finally:
+        hkc_alarm.release.set()
+        await poll
+        await panel.async_will_remove_from_hass()
+
+    assert hkc_alarm.command_calls[-1] == ("disarm", "1234")
+    assert panel.alarm_state == AlarmControlPanelState.DISARMED
+
+
+@pytest.mark.asyncio
+async def test_refresh_runs_after_command_delay(hass):
+    coordinator = get_mock_alarm_coordinator()
+    coordinator.async_force_refresh = AsyncMock()
+    panel = build_panel_with_hass(hass, coordinator)
+
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+        await panel.async_alarm_disarm()
+
+    coordinator.async_force_refresh.assert_not_called()
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=4))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    coordinator.async_force_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_new_command_replaces_pending_refresh(hass):
+    coordinator = get_mock_alarm_coordinator()
+    coordinator.async_force_refresh = AsyncMock()
+    panel = build_panel_with_hass(hass, coordinator)
+
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+        await panel.async_alarm_disarm()
+        await panel.async_alarm_arm_home()
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=4))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    coordinator.async_force_refresh.assert_not_called()
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=11))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    coordinator.async_force_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_removal_cancels_pending_refresh(hass):
+    coordinator = get_mock_alarm_coordinator()
+    coordinator.async_force_refresh = AsyncMock()
+    panel = build_panel_with_hass(hass, coordinator)
+
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
+        await panel.async_alarm_disarm()
+    await panel.async_will_remove_from_hass()
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=4))
+    await hass.async_block_till_done(wait_background_tasks=True)
+    coordinator.async_force_refresh.assert_not_called()

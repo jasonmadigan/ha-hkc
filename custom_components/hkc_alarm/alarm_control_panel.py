@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -8,8 +7,9 @@ from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelState,
     CodeFormat,
 )
-from homeassistant.core import callback
+from homeassistant.core import CALLBACK_TYPE, HassJob, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -49,6 +49,12 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._last_command_result = None
         self._last_command_result_code = None
         self._last_command_acknowledged = None
+        self._cancel_command_refresh: CALLBACK_TYPE | None = None
+        self._command_refresh_job = HassJob(
+            self._async_start_command_refresh,
+            f"{DOMAIN} refresh after command",
+            cancel_on_shutdown=True,
+        )
 
         self._attr_has_entity_name = True
         self._attr_name = None if not view["multi_view"] else view["label"]
@@ -257,10 +263,35 @@ class HKCAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                 translation_placeholders={"response": res},
             )
 
-        # Refresh alarm status on successful command
         if refresh_delay:
-            await asyncio.sleep(refresh_delay)
-            await self._alarm_coordinator.async_force_refresh()
+            self._schedule_command_refresh(refresh_delay)
+
+    @callback
+    def _schedule_command_refresh(self, delay: int) -> None:
+        # never hold the service call open: the refresh can queue behind a slow poll
+        self._cancel_pending_command_refresh()
+        self._cancel_command_refresh = async_call_later(
+            self.hass, delay, self._command_refresh_job
+        )
+
+    @callback
+    def _async_start_command_refresh(self, _now: datetime) -> None:
+        self._cancel_command_refresh = None
+        self.coordinator.config_entry.async_create_background_task(
+            self.hass,
+            self._alarm_coordinator.async_force_refresh(),
+            f"{DOMAIN} refresh after command",
+        )
+
+    @callback
+    def _cancel_pending_command_refresh(self) -> None:
+        if self._cancel_command_refresh is not None:
+            self._cancel_command_refresh()
+            self._cancel_command_refresh = None
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._cancel_pending_command_refresh()
+        await super().async_will_remove_from_hass()
 
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
