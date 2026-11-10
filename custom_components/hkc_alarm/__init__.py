@@ -19,7 +19,7 @@ from .const import (
     MIN_UPDATE_INTERVAL,
 )
 from .helpers import normalize_configured_user_codes
-from .helpers import build_alarm_views, build_device_metadata
+from .helpers import build_alarm_views, build_device_metadata, parse_panel_time
 from .pyhkc_compat import (
     build_hkc_alarm,
     get_device_details,
@@ -78,24 +78,22 @@ class HKCAlarmCoordinator(DataUpdateCoordinator):
             )
             self.panel_data = self._hkc_alarm.get_panel()
 
-        def parse_panel_time():
-            panel_time_str = self.panel_data.get("display", "")
+        def update_panel_time():
+            display = self.panel_data.get("display", "")
             now = datetime.now(timezone.utc)
-            try:
-                self.panel_time = datetime.strptime(
-                    panel_time_str, "%a %d %b %H:%M"
-                ).replace(year=now.year, tzinfo=timezone.utc)
-                self._panel_time_delta = self.panel_time - now
-            except ValueError:
-                _logger.debug(f"Failed to parse panel time: {panel_time_str}")
+            if (panel_time := parse_panel_time(display, now)) is None:
+                _logger.debug("Failed to parse panel time: %s", display)
                 self.panel_time = now + self._panel_time_delta
+                return
+            self.panel_time = panel_time
+            self._panel_time_delta = panel_time - now
 
         try:
             now = datetime.now(timezone.utc)
             if self._last_update is None or now > self._last_update + timedelta(seconds=MIN_UPDATE_INTERVAL):
                 self._last_update = now
                 await self.hass.async_add_executor_job(fetch_data)
-                parse_panel_time()
+                update_panel_time()
             return self.status_by_user, self.panel_data
         except Exception as e:
             _logger.error(f"Exception occurred while fetching HKC data: {e}")
