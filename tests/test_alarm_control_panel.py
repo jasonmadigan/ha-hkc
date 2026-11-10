@@ -62,6 +62,7 @@ async def test_device_info():
         "manufacturer": "HKC",
         "model": "HKC Alarm",
         "sw_version": "1.0.0",
+        "serial_number": None,
     }
     assert alarm_control_panel.device_info == expected_device_info
 
@@ -148,7 +149,7 @@ async def test_arm_command_uses_default_view_user_without_pin():
     with patch(
         "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
         new=AsyncMock(),
-    ):
+    ), patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
         await alarm_control_panel.async_alarm_arm_home()
 
     assert hkc_alarm.command_calls[-1] == ("arm_partset_a", "5678", 1)
@@ -176,7 +177,7 @@ async def test_disarm_command_updates_feedback_without_state_change():
     with patch(
         "custom_components.hkc_alarm.alarm_control_panel.asyncio.sleep",
         new=AsyncMock(),
-    ):
+    ), patch.object(HKCAlarmControlPanel, "async_write_ha_state"):
         await alarm_control_panel.async_alarm_disarm()
 
     assert hkc_alarm.command_calls[-1] == ("disarm", "1234")
@@ -203,7 +204,9 @@ async def test_disarm_already_in_state_still_records_api_ack():
     mock_hass = get_mock_hass()
     alarm_control_panel.hass = mock_hass
 
-    with pytest.raises(ServiceValidationError):
+    with patch.object(HKCAlarmControlPanel, "async_write_ha_state"), pytest.raises(
+        ServiceValidationError
+    ):
         await alarm_control_panel.async_alarm_disarm()
 
     assert alarm_control_panel.extra_state_attributes["Last Command"] == "disarm"
