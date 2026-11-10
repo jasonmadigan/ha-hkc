@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from datetime import datetime, timezone
+
+PANEL_TIME_FORMAT = "%Y %a %d %b %H:%M"
 
 
 class InvalidUserCodeError(ValueError):
@@ -150,3 +153,21 @@ def build_alarm_views(
         )
 
     return views
+
+
+def parse_panel_time(display: str, now: datetime) -> datetime | None:
+    """Parse the panel clock, e.g. "Tue 10 Nov 17:48", which shows no year."""
+    candidates = []
+    for year in (now.year - 1, now.year, now.year + 1):
+        try:
+            candidates.append(
+                datetime.strptime(f"{year} {display}", PANEL_TIME_FORMAT).replace(
+                    tzinfo=timezone.utc
+                )
+            )
+        except ValueError:
+            continue
+    if not candidates:
+        return None
+    # nearest year to now, so 29 feb and the turn of the year resolve correctly
+    return min(candidates, key=lambda candidate: abs(candidate - now))
