@@ -9,7 +9,7 @@
     "@jasonmadigan"
   ],
   "requirements": [
-    "pyhkc==0.6.0"
+    "pyhkc==0.6.1"
   ],
   "config_flow": true,
   "iot_class": "cloud_polling"
