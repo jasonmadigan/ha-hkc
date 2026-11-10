@@ -107,6 +107,7 @@ async def test_device_info():
         "manufacturer": "HKC",
         "model": "HKC Alarm",
         "sw_version": "1.0.0",
+        "serial_number": None,
     }
     assert sensor.device_info == expected_device_info
 
